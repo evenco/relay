@@ -1,7 +1,7 @@
 {
   "name": "react-relay",
   "description": "A framework for building data-driven React applications.",
-  "version": "0.6.0",
+  "version": "0.6.0-even.1",
   "keywords": [
     "graphql",
     "react",
@@ -20,22 +20,20 @@
   "main": "lib/Relay.js",
   "repository": "facebook/relay",
   "scripts": {
-    "build": "gulp",
+    "build": "gulp native",
     "lint": "eslint .",
-    "prepublish": "node node_modules/fbjs-scripts/node/check-dev-engines.js package.json && npm run build",
+    "prepublish": "npm run build",
     "test": "f() { EXIT=0; npm run typecheck || EXIT=$?; NODE_ENV=test jest $@ || EXIT=$?; exit $EXIT; }; f",
     "typecheck": "flow check src/",
     "update-schema": "babel-node ./scripts/jest/updateSchema.js"
   },
+  "browser": {
+    "./lib/RelayUnstableBatchedUpdates.js": "./lib/RelayNativeUnstableBatchedUpdates.js"
+  },
   "dependencies": {
     "babel-runtime": "5.8.24",
-    "fbjs": "^0.5.0",
+    "fbjs": "^0.5.0-even.1",
     "react-static-container": "^1.0.0-alpha.1"
-  },
-  "peerDependencies": {
-    "babel-relay-plugin": "0.6.0",
-    "react": "^0.14.0",
-    "react-dom": "^0.14.0"
   },
   "devDependencies": {
     "babel": "^5.8.25",
