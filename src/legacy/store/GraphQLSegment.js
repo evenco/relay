@@ -12,7 +12,7 @@
 
 'use strict';
 
-var GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
+const GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
 
 /**
  * Represents one contiguous segment of edges within a `GraphQLRange`. Has
@@ -161,7 +161,7 @@ class GraphQLSegment {
     if (!this.getLength()) {
       return {
         edgeIDs: [],
-        cursors: []
+        cursors: [],
       };
     }
     var currentIndex = this._minIndex;
@@ -171,7 +171,7 @@ class GraphQLSegment {
         console.warn('This segment does not have a cursor %s', cursor);
         return {
           edgeIDs: [],
-          cursors: []
+          cursors: [],
         };
       }
       currentIndex = index + 1;
@@ -191,7 +191,7 @@ class GraphQLSegment {
     }
     return {
       edgeIDs: edgeIDs,
-      cursors: cursors
+      cursors: cursors,
     };
   }
 
@@ -205,7 +205,7 @@ class GraphQLSegment {
     if (!this.getLength()) {
       return {
         edgeIDs: [],
-        cursors: []
+        cursors: [],
       };
     }
     var currentIndex = this._maxIndex;
@@ -215,7 +215,7 @@ class GraphQLSegment {
         console.warn('This segment does not have a cursor %s', cursor);
         return {
           edgeIDs: [],
-          cursors: []
+          cursors: [],
         };
       }
       currentIndex = index - 1;
@@ -236,7 +236,7 @@ class GraphQLSegment {
     // Reverse edges because larger index were added first
     return {
       edgeIDs: edgeIDs.reverse(),
-      cursors: cursors.reverse()
+      cursors: cursors.reverse(),
     };
   }
 
@@ -245,6 +245,19 @@ class GraphQLSegment {
    * @param {number} index
    */
   _addEdgeAtIndex(edge, index) {
+    var edgeID = GraphQLStoreDataHandler.getID(edge);
+    var cursor = edge.cursor;
+
+    var idIndex = this._getIndexForID(edgeID);
+    // If the id is has an index and is not deleted
+    if (idIndex !== undefined && this._getEdgeAtIndex(idIndex)) {
+      console.warn(
+        'Attempted to add an ID already in GraphQLSegment: %s',
+        edgeID
+      );
+      return;
+    }
+
     if (this.getLength() === 0) {
       this._minIndex = index;
       this._maxIndex = index;
@@ -258,18 +271,6 @@ class GraphQLSegment {
         `(${this._minIndex}, ${this._maxIndex})`
       );
 
-      return;
-    }
-    var edgeID = GraphQLStoreDataHandler.getID(edge);
-    var cursor = edge.cursor;
-
-    var idIndex = this._getIndexForID(edgeID);
-    // If the id is has an index and is not deleted
-    if (idIndex !== undefined && this._getEdgeAtIndex(idIndex)) {
-      console.warn(
-        'Attempted to add an ID already in GraphQLSegment: %s',
-        edgeID
-      );
       return;
     }
 
@@ -595,7 +596,7 @@ class GraphQLSegment {
       this._cursorToIndexMap,
       this._minIndex,
       this._maxIndex,
-      this._count
+      this._count,
     ];
   }
 
@@ -606,7 +607,7 @@ class GraphQLSegment {
       cursorToIndexMap,
       minIndex,
       maxIndex,
-      count
+      count,
     ] = descriptor;
     var segment = new GraphQLSegment();
     segment._indexToMetadataMap = indexToMetadataMap;
@@ -622,7 +623,7 @@ class GraphQLSegment {
     return {
       metadata: this._indexToMetadataMap,
       idToIndices: this._idToIndicesMap,
-      cursorToIndex:  this._cursorToIndexMap
+      cursorToIndex:  this._cursorToIndexMap,
     };
   }
 

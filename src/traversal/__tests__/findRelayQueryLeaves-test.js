@@ -11,17 +11,18 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
-var GraphQLRange = require('GraphQLRange');
-var Relay = require('Relay');
-var RelayQuery = require('RelayQuery');
-var RelayQueryPath = require('RelayQueryPath');
-var RelayConnectionInterface = require('RelayConnectionInterface');
-var RelayRecordStore = require('RelayRecordStore');
-var findRelayQueryLeaves = require('findRelayQueryLeaves');
-var mapObject = require('mapObject');
+const GraphQLRange = require('GraphQLRange');
+const Relay = require('Relay');
+const RelayConnectionInterface = require('RelayConnectionInterface');
+const RelayQuery = require('RelayQuery');
+const RelayQueryPath = require('RelayQueryPath');
+const RelayRecordStore = require('RelayRecordStore');
+const RelayTestUtils = require('RelayTestUtils');
+
+const findRelayQueryLeaves = require('findRelayQueryLeaves');
+const mapObject = require('mapObject');
 
 describe('findRelayQueryLeaves', () => {
   var {getNode} = RelayTestUtils;
@@ -39,7 +40,7 @@ describe('findRelayQueryLeaves', () => {
   ) {
     var store = new RelayRecordStore({
       records: records || {},
-      cachedRecords: cachedRecords || {}
+      cachedRecords: cachedRecords || {},
     });
     return findRelayQueryLeaves(
       store,
@@ -81,10 +82,16 @@ describe('findRelayQueryLeaves', () => {
       }
     `));
 
-    jest.addMatchers({
-      toMatchPendingNodes(pendingNodes) {
-        expect(encode(this.actual)).toEqual(encode(pendingNodes));
-        return true;
+    jasmine.addMatchers({
+      toMatchPendingNodes() {
+        return {
+          compare(actual, pendingNodes) {
+            expect(encode(actual)).toEqual(encode(pendingNodes));
+            return {
+              pass: true,
+            };
+          },
+        };
       },
     });
   });
@@ -178,7 +185,7 @@ describe('findRelayQueryLeaves', () => {
         id: '1055790163',
         __dataID__: '1055790163',
         __typename: 'User',
-      }
+      },
     };
     var result = findLeaves(
       queryNode,
@@ -191,7 +198,7 @@ describe('findRelayQueryLeaves', () => {
       {'1055790163': [{
         node: queryNode.getFieldByStorageKey('firstName'),
         path: dummyPath,
-        rangeCalls: undefined
+        rangeCalls: undefined,
       }]}
     );
     expect(result.missingData).toBe(false);
@@ -209,7 +216,7 @@ describe('findRelayQueryLeaves', () => {
         id: '1055790163',
         __dataID__: '1055790163',
         __typename: 'User',
-      }
+      },
     };
     var result = findLeaves(
       queryNode,
@@ -236,7 +243,7 @@ describe('findRelayQueryLeaves', () => {
         firstName: 'Yuzhi',
         __dataID__: '1055790163',
         __typename: 'User',
-      }
+      },
     };
     var result = findLeaves(
       queryNode,
@@ -262,7 +269,7 @@ describe('findRelayQueryLeaves', () => {
         firstName: 'Yuzhi',
         __dataID__: '1055790163',
         __typename: 'User',
-      }
+      },
     };
     var result = findLeaves(
       queryNode,
@@ -289,7 +296,7 @@ describe('findRelayQueryLeaves', () => {
         friends: { __dataID__: 'friends_id'},
         __dataID__: '1055790163',
         __typename: 'User',
-      }
+      },
     };
     var result = findLeaves(
       queryNode,
@@ -410,7 +417,7 @@ describe('findRelayQueryLeaves', () => {
         __typename: 'User',
         screennames: [
           {__dataID__: 'client:screenname1'},
-          {__dataID__: 'client:screenname2'}
+          {__dataID__: 'client:screenname2'},
         ],
       },
     };
@@ -427,7 +434,7 @@ describe('findRelayQueryLeaves', () => {
     var pendingItems = [{
       node: serviceField,
       path: dummyPath.getPath(screennamesField, 'client:screenname'),
-      rangeCalls: undefined
+      rangeCalls: undefined,
     }];
     expect(result.pendingNodes).toMatchPendingNodes({
       'client:screenname1': pendingItems,
@@ -450,10 +457,10 @@ describe('findRelayQueryLeaves', () => {
         __typename: 'User',
         screennames: [
           {__dataID__: 'client:screenname1'},
-          {__dataID__: 'client:screenname2'}
+          {__dataID__: 'client:screenname2'},
         ],
       },
-      'client:screenname1': undefined
+      'client:screenname1': undefined,
     };
 
     var result = findLeaves(
@@ -482,17 +489,17 @@ describe('findRelayQueryLeaves', () => {
         __typename: 'User',
         screennames: [
           {__dataID__: 'client:screenname1'},
-          {__dataID__: 'client:screenname2'}
+          {__dataID__: 'client:screenname2'},
         ],
       },
       'client:screenname1': {
         __dataID__: 'client:screenname1',
-        service: true
+        service: true,
       },
       'client:screenname2': {
         __dataID__: 'client:screenname2',
-        service: true
-      }
+        service: true,
+      },
     };
 
     var result = findLeaves(
@@ -519,17 +526,17 @@ describe('findRelayQueryLeaves', () => {
         __typename: 'User',
         screennames: [
           {__dataID__: 'client:screenname1'},
-          {__dataID__: 'client:screenname2'}
+          {__dataID__: 'client:screenname2'},
         ],
       },
       'client:screenname1': {
         __dataID__: 'client:screenname1',
-        service: true
+        service: true,
       },
       'client:screenname2': {
         __dataID__: 'client:screenname2',
-        service: true
-      }
+        service: true,
+      },
     };
 
     var result = findLeaves(
@@ -603,7 +610,7 @@ describe('findRelayQueryLeaves', () => {
         __typename: 'User',
         friends: { __dataID__: 'friends_id'},
       },
-      'friends_id': undefined
+      'friends_id': undefined,
     };
 
     var result = findLeaves(
@@ -636,7 +643,7 @@ describe('findRelayQueryLeaves', () => {
       },
       friends_id: {
         __dataID__:'friends_id',
-      }
+      },
     };
 
     var result = findLeaves(
@@ -656,7 +663,7 @@ describe('findRelayQueryLeaves', () => {
       };
     });
     expect(result.pendingNodes).toMatchPendingNodes({
-      'friends_id': pendingItems
+      'friends_id': pendingItems,
     });
     expect(result.missingData).toBe(false);
   });
@@ -679,7 +686,7 @@ describe('findRelayQueryLeaves', () => {
       },
       friends_id: {
         __dataID__:'friends_id',
-      }
+      },
     };
 
     var result = findLeaves(
@@ -712,8 +719,8 @@ describe('findRelayQueryLeaves', () => {
       },
       friends_id: {
         __dataID__:'friends_id',
-        __range__: new GraphQLRange()
-      }
+        __range__: new GraphQLRange(),
+      },
     };
     records.friends_id.__range__.retrieveRangeInfoForQuery.mockReturnValue({
       requestedEdgeIDs: [],
@@ -749,8 +756,8 @@ describe('findRelayQueryLeaves', () => {
       },
       friends_id: {
         __dataID__:'friends_id',
-        __range__: new GraphQLRange()
-      }
+        __range__: new GraphQLRange(),
+      },
     };
     records.friends_id.__range__.retrieveRangeInfoForQuery.mockReturnValue({
       requestedEdgeIDs: [],
@@ -779,7 +786,7 @@ describe('findRelayQueryLeaves', () => {
     var records = {
       friends_id: {
         __dataID__:'friends_id',
-        __range__: new GraphQLRange()
+        __range__: new GraphQLRange(),
       },
     };
 
@@ -828,7 +835,7 @@ describe('findRelayQueryLeaves', () => {
     var records = {
       friends_id: {
         __dataID__:'friends_id',
-        __range__: new GraphQLRange()
+        __range__: new GraphQLRange(),
       },
       edge_id: undefined,
     };
@@ -867,17 +874,17 @@ describe('findRelayQueryLeaves', () => {
     var records = {
       friends_id: {
         __dataID__:'friends_id',
-        __range__: new GraphQLRange()
+        __range__: new GraphQLRange(),
       },
       edge_id: {
         __dataID__: 'edge_id',
         node: {__dataID__: 'node_id'},
-        cursor: 'cursor'
+        cursor: 'cursor',
       },
       node_id: {
         __dataID__: 'node_id',
-        id: 'node_id,'
-      }
+        id: 'node_id,',
+      },
     };
 
     records.friends_id.__range__.retrieveRangeInfoForQuery.mockReturnValue({
@@ -914,17 +921,17 @@ describe('findRelayQueryLeaves', () => {
     var records = {
       friends_id: {
         __dataID__:'friends_id',
-        __range__: new GraphQLRange()
+        __range__: new GraphQLRange(),
       },
       edge_id: {
         __dataID__: 'edge_id',
         node: {__dataID__: 'node_id'},
-        cursor: 'cursor'
+        cursor: 'cursor',
       },
       node_id: {
         __dataID__: 'node_id',
-        id: 'node_id,'
-      }
+        id: 'node_id,',
+      },
     };
 
     records.friends_id.__range__.retrieveRangeInfoForQuery.mockReturnValue({

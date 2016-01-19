@@ -14,10 +14,10 @@
 'use strict';
 
 import type RelayMutationRequest from 'RelayMutationRequest';
-var RelayProfiler = require('RelayProfiler');
+const RelayProfiler = require('RelayProfiler');
 import type RelayQueryRequest from 'RelayQueryRequest';
 
-var invariant = require('invariant');
+const invariant = require('invariant');
 
 type NetworkLayer = {
   sendMutation: (mutationRequest: RelayMutationRequest) => ?Promise;
@@ -59,7 +59,7 @@ var RelayNetworkLayer = {
   },
 };
 
-function getCurrentNetworkLayer(): NetworkLayer {
+function getCurrentNetworkLayer(): $FlowIssue {
   invariant(
     injectedNetworkLayer,
     'RelayNetworkLayer: Use `injectNetworkLayer` to configure a network layer.'

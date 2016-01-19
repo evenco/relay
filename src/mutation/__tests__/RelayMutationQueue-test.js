@@ -11,21 +11,21 @@
 
 'use strict';
 
-require('RelayTestUtils').unmockRelay();
+require('configureForRelayOSS');
 
 jest
   .dontMock('RelayMutationTransaction')
   .dontMock('RelayMutationTransactionStatus');
 
-var Relay = require('Relay');
-var RelayConnectionInterface = require('RelayConnectionInterface');
-var RelayMutation = require('RelayMutation');
-var RelayMutationQuery = require('RelayMutationQuery');
-var RelayMutationTransactionStatus = require('RelayMutationTransactionStatus');
-var RelayStoreData = require('RelayStoreData');
+const Relay = require('Relay');
+const RelayConnectionInterface = require('RelayConnectionInterface');
+const RelayMutation = require('RelayMutation');
+const RelayMutationQuery = require('RelayMutationQuery');
+const RelayMutationTransactionStatus = require('RelayMutationTransactionStatus');
+const RelayStoreData = require('RelayStoreData');
 
-var flattenRelayQuery = require('flattenRelayQuery');
-var fromGraphQL = require('fromGraphQL');
+const flattenRelayQuery = require('flattenRelayQuery');
+const fromGraphQL = require('fromGraphQL');
 
 describe('RelayMutationQueue', () => {
   var RelayNetworkLayer;
@@ -106,9 +106,7 @@ describe('RelayMutationQueue', () => {
         'optimisticQuery'
       );
 
-      /* eslint-disable no-new */
       mutationQueue.createTransaction(mockMutation);
-      /* eslint-enable no-new */
 
       expect(
         RelayMutationQuery.buildQueryForOptimisticUpdate.mock.calls
@@ -157,7 +155,7 @@ describe('RelayMutationQueue', () => {
     it('throws if commit is called more than once', () => {
       var transaction = mutationQueue.createTransaction(mockMutation1);
       transaction.commit();
-      expect(() => transaction.commit()).toThrow(
+      expect(() => transaction.commit()).toThrowError(
         'RelayMutationTransaction: Only transactions with status ' +
         '`UNCOMMITTED` can be comitted.'
       );
@@ -313,7 +311,7 @@ describe('RelayMutationQueue', () => {
 
       expect(failureCallback1).toBeCalled();
       expect(failureCallback2).toBeCalled();
-      expect(() => transaction1.getStatus()).toThrow(
+      expect(() => transaction1.getStatus()).toThrowError(
         'RelayMutationQueue: `0` is not a valid pending transaction ID.'
       );
       expect(transaction2.getStatus()).toBe(
@@ -418,7 +416,7 @@ describe('RelayMutationQueue', () => {
       expect(transaction1.getStatus()).toBe(
         RelayMutationTransactionStatus.COMMIT_FAILED
       );
-      expect(() => transaction2.getStatus()).toThrow(
+      expect(() => transaction2.getStatus()).toThrowError(
         'RelayMutationQueue: `1` is not a valid pending transaction ID.'
       );
       expect(transaction3.getStatus()).toBe(

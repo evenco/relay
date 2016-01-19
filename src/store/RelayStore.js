@@ -13,15 +13,16 @@
 
 'use strict';
 
-var GraphQLFragmentPointer = require('GraphQLFragmentPointer');
+const GraphQLFragmentPointer = require('GraphQLFragmentPointer');
 import type RelayMutation from 'RelayMutation';
-var RelayMutationTransaction = require('RelayMutationTransaction');
-var RelayQuery = require('RelayQuery');
-var RelayQueryResultObservable = require('RelayQueryResultObservable');
-var RelayStoreData = require('RelayStoreData');
+const RelayMutationTransaction = require('RelayMutationTransaction');
+const RelayQuery = require('RelayQuery');
+const RelayQueryResultObservable = require('RelayQueryResultObservable');
+const RelayStoreData = require('RelayStoreData');
 
-var forEachRootCallArg = require('forEachRootCallArg');
-var readRelayQueryData = require('readRelayQueryData');
+const forEachRootCallArg = require('forEachRootCallArg');
+const readRelayQueryData = require('readRelayQueryData');
+const warning = require('warning');
 
 import type {
   Abortable,
@@ -29,12 +30,12 @@ import type {
   RelayMutationTransactionCommitCallbacks,
   ReadyStateChangeCallback,
   StoreReaderData,
-  StoreReaderOptions
+  StoreReaderOptions,
 } from 'RelayTypes';
 
 import type {
   DataID,
-  RelayQuerySet
+  RelayQuerySet,
 } from 'RelayInternalTypes';
 
 var storeData = RelayStoreData.getDefaultInstance();
@@ -161,6 +162,10 @@ var RelayStore = {
     return new RelayQueryResultObservable(storeData, fragmentPointer);
   },
 
+  /**
+   * Adds an update to the store without committing it. The returned
+   * RelayMutationTransaction can be committed or rolled back at a later time.
+   */
   applyUpdate(
     mutation: RelayMutation,
     callbacks?: RelayMutationTransactionCommitCallbacks
@@ -171,11 +176,34 @@ var RelayStore = {
     );
   },
 
+  /**
+   * Adds an update to the store and commits it immediately. Returns
+   * the RelayMutationTransaction.
+   */
+  commitUpdate(
+    mutation: RelayMutation,
+    callbacks?: RelayMutationTransactionCommitCallbacks
+  ): RelayMutationTransaction {
+    const transaction = this.applyUpdate(mutation, callbacks);
+    transaction.commit();
+    return transaction;
+  },
+
+  /**
+   * @deprecated
+   *
+   * Method renamed to commitUpdate
+   */
   update(
     mutation: RelayMutation,
     callbacks?: RelayMutationTransactionCommitCallbacks
   ): void {
-    this.applyUpdate(mutation, callbacks).commit();
+    warning(
+      false,
+      '`Relay.Store.update` is deprecated. Please use' +
+      ' `Relay.Store.commitUpdate` or `Relay.Store.applyUpdate` instead.'
+    );
+    this.commitUpdate(mutation, callbacks);
   },
 };
 

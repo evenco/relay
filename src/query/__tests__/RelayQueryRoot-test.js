@@ -11,12 +11,12 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
-var QueryBuilder = require('QueryBuilder');
-var Relay = require('Relay');
-var RelayQuery = require('RelayQuery');
+const QueryBuilder = require('QueryBuilder');
+const Relay = require('Relay');
+const RelayQuery = require('RelayQuery');
+const RelayTestUtils = require('RelayTestUtils');
 
 describe('RelayQueryRoot', () => {
   var {defer, getNode} = RelayTestUtils;
@@ -27,7 +27,7 @@ describe('RelayQueryRoot', () => {
   beforeEach(() => {
     jest.resetModuleRegistry();
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
 
     me = getNode(Relay.QL`
       query {
@@ -45,7 +45,7 @@ describe('RelayQueryRoot', () => {
         }
       }
     `);
-    usernames.__concreteNode__.metadata = {
+    usernames.getConcreteQueryNode().metadata = {
       isPlural: true,
       identifyingArgName: 'names',
     };
@@ -245,7 +245,7 @@ describe('RelayQueryRoot', () => {
         }
       }
     `);
-    usernames2.__concreteNode__.metadata = {
+    usernames2.getConcreteQueryNode().metadata = {
       isPlural: true,
       identifyingArgName: 'names',
     };
@@ -341,7 +341,7 @@ describe('RelayQueryRoot', () => {
 
   it('returns the identifying argument type', () => {
     var nodeQuery = getNode(Relay.QL`query{node(id:"123"){id}}`);
-    nodeQuery.__concreteNode__.metadata = {
+    nodeQuery.getConcreteQueryNode().metadata = {
       identifyingArgName: 'id',
       identifyingArgType: 'scalar',
     };
@@ -378,56 +378,6 @@ describe('RelayQueryRoot', () => {
     expect(actorID.getVariables()).toBe(query.getVariables());
   });
 
-  it('returns deferred fragment names if present', () => {
-    var fragment2 = Relay.QL`
-      fragment on User {
-        name,
-      }
-    `;
-    var fragment1a = Relay.QL`
-      fragment on User {
-        id,
-        ${defer(fragment2)},
-      }
-    `;
-    var fragment1b = Relay.QL`
-      fragment on User {
-        id,
-        ${defer(fragment2)},
-      }
-    `;
-    var query = getNode(Relay.QL`
-      query {
-        viewer {
-          actor {
-            ${defer(fragment1a)},
-            ${Relay.QL`
-              fragment on User {
-                ${defer(fragment1b)},
-              }
-            `}
-          }
-        }
-      }
-    `);
-    // nested deferred fragment names are not included
-    var expected = {};
-    var fragment1aID = getNode(fragment1a).getFragmentID();
-    var fragment1bID = getNode(fragment1b).getFragmentID();
-    expected[fragment1aID] = fragment1aID;
-    expected[fragment1bID] = fragment1bID;
-    expect(query.getDeferredFragmentNames()).toEqual(expected);
-
-    query = getNode(Relay.QL`
-      query {
-        me {
-          id
-        }
-      }
-    `);
-    expect(query.getDeferredFragmentNames()).toEqual({});
-  });
-
   it('returns directives', () => {
     var query = getNode(Relay.QL`
       query {
@@ -442,7 +392,7 @@ describe('RelayQueryRoot', () => {
         arguments: [
           {name: 'if', value: true},
         ],
-      }
+      },
     ]);
   });
 
@@ -474,7 +424,9 @@ describe('RelayQueryRoot', () => {
       const identifyingQuery = getNode(
         Relay.QL`query { username(name:"yuzhi") }`
       );
-      identifyingQuery.__concreteNode__.metadata = {identifyingArgName: 'name'};
+      identifyingQuery.getConcreteQueryNode().metadata = {
+        identifyingArgName: 'name',
+      };
       expect(identifyingQuery.getStorageKey()).toBe('username');
     });
 

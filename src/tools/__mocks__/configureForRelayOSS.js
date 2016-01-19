@@ -9,4 +9,4 @@
 
 'use strict';
 
-module.exports = require.requireActual('getWeakIdForObject');
+global.__RELAYOSS__ = true;

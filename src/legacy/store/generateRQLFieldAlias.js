@@ -12,7 +12,8 @@
 
 'use strict';
 
-var crc32 = require('crc32');
+const base62 = require('base62');
+const crc32 = require('crc32');
 
 var PREFIX = '_';
 
@@ -38,7 +39,7 @@ function generateRQLFieldAlias(input) {
     return input;
   }
 
-  return PREFIX + input.substr(0, index) + Math.abs(crc32(input)).toString(36);
+  return PREFIX + input.substr(0, index) + base62(Math.abs(crc32(input)));
 }
 
 module.exports = generateRQLFieldAlias;

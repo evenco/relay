@@ -20,29 +20,28 @@ import type {
   ConcreteNode,
   ConcreteQuery,
 } from 'ConcreteQuery';
-var QueryBuilder = require('QueryBuilder');
+const QueryBuilder = require('QueryBuilder');
 import type {
   ConcreteFieldMetadata,
   ConcreteOperationMetadata,
   ConcreteQueryMetadata,
 } from 'QueryBuilder';
-var RelayConnectionInterface = require('RelayConnectionInterface');
-var RelayFragmentReference = require('RelayFragmentReference');
+const RelayConnectionInterface = require('RelayConnectionInterface');
+const RelayFragmentReference = require('RelayFragmentReference');
 import type {Call, Directive}  from 'RelayInternalTypes';
-var RelayMetaRoute = require('RelayMetaRoute');
-var RelayProfiler = require('RelayProfiler');
-var RelayRouteFragment = require('RelayRouteFragment');
+const RelayMetaRoute = require('RelayMetaRoute');
+const RelayProfiler = require('RelayProfiler');
+const RelayRouteFragment = require('RelayRouteFragment');
 import type {Variables} from 'RelayTypes';
 
-var areEqual = require('areEqual');
-var callsFromGraphQL = require('callsFromGraphQL');
-var callsToGraphQL = require('callsToGraphQL');
-var generateRQLFieldAlias = require('generateRQLFieldAlias');
-var getWeakIdForObject = require('getWeakIdForObject');
-var invariant = require('invariant');
-var printRelayQueryCall = require('printRelayQueryCall');
-var shallowEqual = require('shallowEqual');
-var stableStringify = require('stableStringify');
+const areEqual = require('areEqual');
+const callsFromGraphQL = require('callsFromGraphQL');
+const callsToGraphQL = require('callsToGraphQL');
+const generateRQLFieldAlias = require('generateRQLFieldAlias');
+const invariant = require('invariant');
+const serializeRelayQueryCall = require('serializeRelayQueryCall');
+const shallowEqual = require('shallowEqual');
+const stableStringify = require('stableStringify');
 
 type BatchCall = {
   refParamName: string;
@@ -52,9 +51,7 @@ type BatchCall = {
 type FragmentMetadata = {
   isDeferred: boolean;
   isContainerFragment: boolean;
-  isTypeConditional: boolean;
 };
-type FragmentNames = {[key: string]: string};
 // TODO: replace once #6525923 is resolved
 type NextChildren = Array<any>;
 
@@ -66,15 +63,12 @@ const FALSE = 'false';
 const SKIP = 'skip';
 const INCLUDE = 'include';
 
-const QUERY_ID_PREFIX = 'q';
-const REF_PARAM_PREFIX = 'ref_';
-
+let _nextFragmentID = 0;
 let _nextQueryID = 0;
 
 const DEFAULT_FRAGMENT_METADATA = {
   isDeferred: false,
   isContainerFragment: false,
-  isTypeConditional: false,
 };
 const EMPTY_DIRECTIVES = [];
 const EMPTY_CALLS = [];
@@ -120,9 +114,6 @@ class RelayQueryNode {
   __storageKey__: ?string;
   __variables__: Variables;
 
-  // TODO(#7161070) Remove this once `toGraphQL` is no longer needed.
-  __isConcreteNodeCached__: boolean;
-
   static create(
     concreteNode: mixed,
     route: RelayMetaRoute,
@@ -163,9 +154,6 @@ class RelayQueryNode {
     this.__hasValidatedConnectionCalls__ = null;
     this.__serializationKey__ = null;
     this.__storageKey__ = null;
-
-    // TODO(#7161070) Remove this once `toGraphQL` is no longer needed.
-    this.__isConcreteNodeCached__ = false;
   }
 
   isGenerated(): boolean {
@@ -356,13 +344,7 @@ class RelayQueryNode {
     );
   }
 
-  getConcreteQueryNode(
-    onCacheMiss: () => any
-  ): any {
-    if (!this.__isConcreteNodeCached__) {
-      this.__concreteNode__ = onCacheMiss();
-      this.__isConcreteNodeCached__ = true;
-    }
+  getConcreteQueryNode(): any {
     return this.__concreteNode__;
   }
 }
@@ -374,7 +356,6 @@ class RelayQueryNode {
  */
 class RelayQueryRoot extends RelayQueryNode {
   __batchCall__: ?BatchCall;
-  __deferredFragmentNames__: ?FragmentNames;
   __id__: ?string;
   __identifyingArg__: ?Call;
   __storageKey__: ?string;
@@ -442,7 +423,6 @@ class RelayQueryRoot extends RelayQueryNode {
   ) {
     super(concreteNode, route, variables);
     this.__batchCall__ = undefined;
-    this.__deferredFragmentNames__ = undefined;
     this.__id__ = undefined;
     this.__identifyingArg__ = undefined;
     this.__storageKey__ = undefined;
@@ -463,7 +443,7 @@ class RelayQueryRoot extends RelayQueryNode {
   getID(): string {
     var id = this.__id__;
     if (id == null) {
-      id = QUERY_ID_PREFIX + _nextQueryID++;
+      id = 'q' + _nextQueryID++;
       this.__id__ = id;
     }
     return id;
@@ -481,7 +461,7 @@ class RelayQueryRoot extends RelayQueryNode {
           callArg.kind === 'BatchCallVariable'
         ) {
           batchCall = {
-            refParamName: REF_PARAM_PREFIX + callArg.sourceQueryID,
+            refParamName: 'ref_' + callArg.sourceQueryID,
             sourceQueryID: callArg.sourceQueryID,
             sourceQueryPath: callArg.jsonPath,
           };
@@ -561,16 +541,6 @@ class RelayQueryRoot extends RelayQueryNode {
 
   isPlural(): boolean {
     return !!(this.__concreteNode__: ConcreteQuery).metadata.isPlural;
-  }
-
-  getDeferredFragmentNames(): FragmentNames {
-    var fragmentNames = this.__deferredFragmentNames__;
-    if (!fragmentNames) {
-      fragmentNames = {};
-      getDeferredFragmentNamesForField(this, fragmentNames);
-      this.__deferredFragmentNames__ = fragmentNames;
-    }
-    return fragmentNames;
   }
 
   equals(that: RelayQueryNode): boolean {
@@ -783,8 +753,8 @@ class RelayQuerySubscription extends RelayQueryOperation {
  * Wraps access to query fragments.
  */
 class RelayQueryFragment extends RelayQueryNode {
-  __fragmentID__: ?string;
-  __hash__: ?string;
+  __compositeHash__: ?string;
+  __isCloned__: boolean;
   __metadata__: FragmentMetadata;
 
   /**
@@ -810,7 +780,6 @@ class RelayQueryFragment extends RelayQueryNode {
       {
         isDeferred: !!(metadata && metadata.isDeferred),
         isContainerFragment: !!(metadata && metadata.isContainerFragment),
-        isTypeConditional: !!(metadata && metadata.isTypeConditional),
       }
     );
     fragment.__children__ = nextChildren;
@@ -845,9 +814,8 @@ class RelayQueryFragment extends RelayQueryNode {
     metadata?: FragmentMetadata
   ) {
     super(concreteNode, route, variables);
-    this.__fragmentID__ = null;
-    // NOTE: `this.__hash__` gets set to null when cloning.
-    this.__hash__ = concreteNode.hash || null;
+    this.__compositeHash__ = null;
+    this.__isCloned__ = false;
     this.__metadata__ = metadata || DEFAULT_FRAGMENT_METADATA;
   }
 
@@ -856,37 +824,50 @@ class RelayQueryFragment extends RelayQueryNode {
   }
 
   /**
-   * Returns the hash for a fragment that is generated by the code transform.
-   * Fragments that are generated on the client do not have a hash.
+   * Checks whether a fragment has been cloned such that the concrete node is no
+   * longer representative of this instance. This will return true for fragments
+   * that are the result of cloning with new children.
    */
-  getConcreteFragmentHash(): ?string {
-    return this.__hash__;
+  isCloned(): boolean {
+    return this.__isCloned__;
   }
 
   /**
-   * Returns the weak ID for the concrete fragment. Unlike `getFragmentID`,
-   * this value is identical for any `RelayQueryFragment` with the same concrete
-   * fragment, regardless of params/route.
+   * The "concrete node hash" of a fragment uniquely identifies the instance of
+   * the concrete node. This method should be used with `isCloned()` if you may
+   * be dealing with fragments that have been cloned with new children.
+   *
+   * This hash may change between runtime sessions (e.g. client and server).
    */
-  getConcreteFragmentID(): string {
-    return '_RelayQueryFragment' + getWeakIdForObject(this.__concreteNode__);
-  }
-
-  /**
-   * Returns an identifier for a fragment that is unique for any combination of
-   * concrete fragment, route name, and variables.
-   */
-  getFragmentID(): string {
-    var fragmentID = this.__fragmentID__;
-    if (!fragmentID) {
-      fragmentID = generateRQLFieldAlias(
-        this.getConcreteFragmentID() + '.' +
-        this.__route__.name + '.' +
-        stableStringify(this.__variables__)
-      );
-      this.__fragmentID__ = fragmentID;
+  getConcreteNodeHash(): string {
+    let instanceHash = this.__concreteNode__.__instanceHash__;
+    if (instanceHash == null) {
+      instanceHash = (_nextFragmentID++).toString();
+      this.__concreteNode__.__instanceHash__ = instanceHash;
     }
-    return fragmentID;
+    return instanceHash;
+  }
+
+  /**
+   * The "composite hash" is similar to the concrete instance hash, but is also
+   * uniquely differentiates between varying variable values or route names. It
+   * should also be used with `isCloned()`.
+   *
+   * The composite hash is used to identify fragment pointers in records. It is
+   * also used to store the status of fetching deferred fragments.
+   */
+  getCompositeHash(): string {
+    let compositeHash = this.__compositeHash__;
+    if (!compositeHash) {
+      // TODO: Simplify this hash function, #9599170.
+      compositeHash = generateRQLFieldAlias(
+        this.getConcreteNodeHash() +
+        '.' + this.__route__.name +
+        '.' + stableStringify(this.__variables__)
+      );
+      this.__compositeHash__ = compositeHash;
+    }
+    return compositeHash;
   }
 
   isAbstract(): boolean {
@@ -918,10 +899,6 @@ class RelayQueryFragment extends RelayQueryNode {
     return this.__metadata__.isContainerFragment;
   }
 
-  isTypeConditional(): boolean {
-    return this.__metadata__.isTypeConditional;
-  }
-
   hasDeferredDescendant(): boolean {
     return this.isDeferred() || super.hasDeferredDescendant();
   }
@@ -930,7 +907,7 @@ class RelayQueryFragment extends RelayQueryNode {
     var clone = super.clone(children);
     if (clone !== this &&
         clone instanceof RelayQueryFragment) {
-      clone.__hash__ = null;
+      clone.__isCloned__ = true;
       clone.__metadata__ = {
         ...this.__metadata__,
       };
@@ -961,6 +938,7 @@ class RelayQueryField extends RelayQueryNode {
   __debugName__: ?string;
   __isRefQueryDependency__: boolean;
   __rangeBehaviorKey__: ?string;
+  __shallowHash__: ?string;
 
   static create(
     concreteNode: mixed,
@@ -1025,6 +1003,7 @@ class RelayQueryField extends RelayQueryNode {
     this.__debugName__ = undefined;
     this.__isRefQueryDependency__ = false;
     this.__rangeBehaviorKey__ = undefined;
+    this.__shallowHash__ = undefined;
   }
 
   isAbstract(): boolean {
@@ -1071,7 +1050,7 @@ class RelayQueryField extends RelayQueryNode {
       this.getCallsWithValues().forEach(arg => {
         if (this._isCoreArg(arg)) {
           printedCoreArgs = printedCoreArgs || [];
-          printedCoreArgs.push(printRelayQueryCall(arg));
+          printedCoreArgs.push(serializeRelayQueryCall(arg));
         }
       });
       if (printedCoreArgs) {
@@ -1110,7 +1089,7 @@ class RelayQueryField extends RelayQueryNode {
       const printedCoreArgs = [];
       this.getCallsWithValues().forEach(arg => {
         if (this._isCoreArg(arg)) {
-          printedCoreArgs.push(printRelayQueryCall(arg));
+          printedCoreArgs.push(serializeRelayQueryCall(arg));
         }
       });
       rangeBehaviorKey = printedCoreArgs.sort().join('').slice(1);
@@ -1137,13 +1116,26 @@ class RelayQueryField extends RelayQueryNode {
       serializationKey = generateRQLFieldAlias(
         this.getSchemaName() +
         this.getCallsWithValues()
-          .map(printRelayQueryCall)
+          .map(serializeRelayQueryCall)
           .sort()
           .join('')
       );
       this.__serializationKey__ = serializationKey;
     }
     return serializationKey;
+  }
+
+  /**
+   * Returns a hash of the field name and all argument values.
+   */
+  getShallowHash(): string {
+    let shallowHash = this.__shallowHash__;
+    if (!shallowHash) {
+      this.__shallowHash__ = shallowHash =
+        this.getSchemaName() +
+        serializeCalls(this.getCallsWithValues());
+    }
+    return shallowHash;
   }
 
   /**
@@ -1160,18 +1152,11 @@ class RelayQueryField extends RelayQueryNode {
   getStorageKey(): string {
     let storageKey = this.__storageKey__;
     if (!storageKey) {
-      storageKey = this.getSchemaName();
-      let coreArgsObj;
-      this.getCallsWithValues().forEach(arg => {
-        if (this._isCoreArg(arg)) {
-          coreArgsObj = coreArgsObj || {};
-          coreArgsObj[arg.name] = arg.value;
-        }
-      });
-      if (coreArgsObj) {
-        storageKey += stableStringify(coreArgsObj);
-      }
-      this.__storageKey__ = storageKey;
+      this.__storageKey__ = storageKey =
+        this.getSchemaName() +
+        serializeCalls(
+          this.getCallsWithValues().filter(call => this._isCoreArg(call))
+        );
     }
     return storageKey;
   }
@@ -1315,7 +1300,7 @@ function createNode(
     type = RelayQueryFragment;
   } else if (kind === 'FragmentReference') {
     type = RelayQueryFragment;
-    let fragment = QueryBuilder.getFragment(concreteNode.fragment);
+    const fragment = QueryBuilder.getFragment(concreteNode.fragment);
     // TODO #9171213: Reference directives should override fragment directives
     if (fragment) {
       return createMemoizedFragment(
@@ -1325,7 +1310,6 @@ function createNode(
         {
           isDeferred: false,
           isContainerFragment: true,
-          isTypeConditional: true,
         }
       );
     }
@@ -1336,7 +1320,7 @@ function createNode(
   } else if (kind === 'Subscription') {
     type = RelayQuerySubscription;
   } else if (concreteNode instanceof RelayRouteFragment) {
-    let fragment = concreteNode.getFragmentForRoute(route);
+    const fragment = concreteNode.getFragmentForRoute(route);
     if (fragment) {
       // may be null if no value was defined for this route.
       return createNode(
@@ -1347,8 +1331,8 @@ function createNode(
     }
     return null;
   } else if (concreteNode instanceof RelayFragmentReference) {
-    let fragment = concreteNode.getFragment(variables);
-    let fragmentVariables = concreteNode.getVariables(route, variables);
+    const fragment = concreteNode.getFragment(variables);
+    const fragmentVariables = concreteNode.getVariables(route, variables);
     if (fragment) {
       // the fragment may be null when `if` or `unless` conditions are not met.
       return createMemoizedFragment(
@@ -1358,7 +1342,6 @@ function createNode(
         {
           isDeferred: concreteNode.isDeferred(),
           isContainerFragment: concreteNode.isContainerFragment(),
-          isTypeConditional: concreteNode.isTypeConditional(),
         }
       );
     }
@@ -1428,21 +1411,18 @@ function cloneChildren(
 }
 
 /**
- * Returns the names of the deferred fragments in the query. Does not return
- * nested deferred fragment names.
+ * Creates an opaque serialization of calls.
  */
-function getDeferredFragmentNamesForField(
-  node: RelayQueryNode,
-  fragmentNames: FragmentNames
-): void {
-  if (node instanceof RelayQueryFragment && node.isDeferred()) {
-    var fragmentID = node.getFragmentID();
-    fragmentNames[fragmentID] = fragmentID;
-    return;
+function serializeCalls(calls: Array<Call>): string {
+  if (calls.length) {
+    const callMap = {};
+    calls.forEach(call => {
+      callMap[call.name] = call.value;
+    });
+    return stableStringify(callMap);
+  } else {
+    return '';
   }
-  node.getChildren().forEach(
-    child => getDeferredFragmentNamesForField(child, fragmentNames)
-  );
 }
 
 RelayProfiler.instrumentMethods(RelayQueryNode.prototype, {

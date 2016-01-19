@@ -11,29 +11,34 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
-var Relay = require('Relay');
-var containsRelayQueryRootCall = require('containsRelayQueryRootCall');
+const Relay = require('Relay');
+const RelayTestUtils = require('RelayTestUtils');
+
+const containsRelayQueryRootCall = require('containsRelayQueryRootCall');
 
 describe('containsRelayQueryRootCall', function() {
   var {getNode} = RelayTestUtils;
 
   beforeEach(function() {
-    jest.addMatchers({
-      toContainRootCall(thatQuery) {
-        var thisQuery = this.actual;
-        var notText = this.isNot ? 'not ' : '';
-        this.message = function() {
-          return 'Expected `' + thisQuery + '` ' + notText +
-            'to contain root call of `' + thatQuery + '`.';
+    jasmine.addMatchers({
+      toContainRootCall() {
+        return {
+          compare(thisQuery, thatQuery) {
+            var pass = containsRelayQueryRootCall(
+              getNode(thisQuery),
+              getNode(thatQuery)
+            );
+            var notText = pass ? 'not ' : '';
+            return {
+              pass,
+              message: 'Expected `' + thisQuery + '` ' + notText +
+                'to contain root call of `' + thatQuery + '`.',
+            };
+          },
         };
-        return containsRelayQueryRootCall(
-          getNode(thisQuery),
-          getNode(thatQuery)
-        );
-      }
+      },
     });
   });
 

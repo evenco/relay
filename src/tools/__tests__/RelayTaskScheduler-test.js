@@ -13,210 +13,51 @@
 
 jest.dontMock('RelayTaskScheduler');
 
-var RelayTaskScheduler = require('RelayTaskScheduler');
-var RelayTestUtils = require('RelayTestUtils');
-var resolveImmediate = require('resolveImmediate');
+const RelayTaskQueue = require('RelayTaskQueue');
+const RelayTaskScheduler = require('RelayTaskScheduler');
 
 describe('RelayTaskScheduler', () => {
   beforeEach(() => {
     jest.resetModuleRegistry();
-
-    jest.addMatchers(RelayTestUtils.matchers);
   });
 
-  describe('default scheduler', () => {
-    it('resolves to undefined when no callbacks are supplied', () => {
-      var mockFunction = jest.genMockFunction();
-      RelayTaskScheduler.await().then(mockFunction);
-
-      jest.runAllTimers();
-
-      expect(mockFunction).toBeCalledWith(undefined);
-    });
-
-    it('immediately invokes tasks', () => {
-      var mockFunction = jest.genMockFunction();
-      RelayTaskScheduler.await(mockFunction);
-
-      jest.runAllTimers();
-
-      expect(mockFunction).toBeCalled();
-    });
-
-    it('invokes multiple awaited tasks in order', () => {
-      var mockOrdering = [];
-
-      RelayTaskScheduler.await(() => mockOrdering.push('foo'));
-      RelayTaskScheduler.await(() => mockOrdering.push('bar'));
-      RelayTaskScheduler.await(() => mockOrdering.push('baz'));
-
-      jest.runAllTimers();
-
-      expect(mockOrdering).toEqual(['foo', 'bar', 'baz']);
-    });
-
-    it('awaits tasks awaited by other tasks contiguously', () => {
-      var mockOrdering = [];
-
-      RelayTaskScheduler.await(() => {
-        mockOrdering.push('foo');
-        RelayTaskScheduler.await(() => mockOrdering.push('bar'));
+  describe('enqueue()', () => {
+    describe('having had no scheduler injected', () => {
+      it('causes a queue to be created the first time it\'s used', () => {
+        expect(RelayTaskQueue.mock.instances.length).toBe(0);
+        RelayTaskScheduler.enqueue(() => {});
+        expect(RelayTaskQueue.mock.instances.length).toBe(1);
+        expect(RelayTaskQueue.prototype.constructor).toBeCalledWith(undefined);
+        RelayTaskScheduler.enqueue(() => {});
+        expect(RelayTaskQueue.mock.instances.length).toBe(1);
       });
-      // Although `baz` is enqueued before `bar`, `bar` should execute first.
-      RelayTaskScheduler.await(() => mockOrdering.push('baz'));
-
-      jest.runAllTimers();
-
-      expect(mockOrdering).toEqual(['foo', 'bar', 'baz']);
     });
 
-    it('resolves to the task\'s return value', () => {
-      var mockFunction = jest.genMockFunction();
-      RelayTaskScheduler.await(() => 42).then(mockFunction);
+    describe('having had a scheduler injected', () => {
+      let mockScheduler;
 
-      jest.runAllTimers();
-
-      expect(mockFunction).toBeCalledWith(42);
-    });
-
-    it('forwards return values for multiple callbacks', () => {
-      var mockOrdering = [];
-
-      RelayTaskScheduler.await(
-        () => {
-          mockOrdering.push('foo');
-          return 'bar';
-        },
-        prevValue => {
-          mockOrdering.push(prevValue);
-          return 'baz';
-        }
-      ).then(
-        returnValue => {
-          mockOrdering.push(returnValue);
-        }
-      );
-
-      jest.runAllTimers();
-
-      expect(mockOrdering).toEqual(['foo', 'bar', 'baz']);
-    });
-
-    it('aborts and rejects if a callback throws', () => {
-      var mockError = new Error('Expected error.');
-      var mockCallback = jest.genMockFunction();
-      var mockFailureCallback = jest.genMockFunction();
-
-      RelayTaskScheduler.await(
-        () => 'foo',
-        () => { throw mockError; },
-        mockCallback,
-      ).catch(mockFailureCallback);
-
-      jest.runAllTimers();
-
-      expect(mockCallback).not.toBeCalled();
-      expect(mockFailureCallback).toBeCalledWith(mockError);
-    });
-
-    it('does not affect next chain of callbacks after rejection', () => {
-      var mockError = new Error('Expected error.');
-      var mockCallback = jest.genMockFunction();
-      var mockFailureCallback = jest.genMockFunction();
-      var mockSuccessCallback = jest.genMockFunction();
-
-      RelayTaskScheduler.await(
-        () => { throw mockError; },
-      ).catch(mockFailureCallback);
-
-      RelayTaskScheduler.await(
-        mockCallback,
-      ).then(mockSuccessCallback);
-
-      jest.runAllTimers();
-
-      expect(mockFailureCallback).toBeCalledWith(mockError);
-      expect(mockCallback).toBeCalled();
-      expect(mockSuccessCallback).toBeCalled();
-    });
-  });
-
-  describe('injected scheduler', () => {
-    var mockScheduler;
-    var mockTasks;
-
-    beforeEach(() => {
-      mockTasks = [];
-      mockScheduler = function(executeTask) {
-        resolveImmediate(() => mockTasks.push(executeTask));
-      };
-    });
-
-    it('allows injection of a scheduler to defer task execution', () => {
-      RelayTaskScheduler.injectScheduler(mockScheduler);
-
-      var mockFunction = jest.genMockFunction();
-      RelayTaskScheduler.await(mockFunction);
-
-      jest.runAllTimers();
-
-      expect(mockFunction).not.toBeCalled();
-      expect(mockTasks.length).toBe(1);
-
-      // Execute the task, which should not return anything.
-      expect(mockTasks[0]()).toBe(undefined);
-      expect(mockFunction).toBeCalled();
-    });
-
-    it('allows an injected scheduler to defer multiple tasks', () => {
-      RelayTaskScheduler.injectScheduler(mockScheduler);
-
-      var mockOrdering = [];
-
-      RelayTaskScheduler.await(() => {
-        mockOrdering.push('foo');
-        RelayTaskScheduler.await(() => mockOrdering.push('bar'));
+      beforeEach(() => {
+        mockScheduler = jest.genMockFunction();
+        RelayTaskScheduler.injectScheduler(mockScheduler);
       });
-      RelayTaskScheduler.await(() => mockOrdering.push('baz'));
 
-      jest.runAllTimers();
+      it('causes a queue to be created the first time it\'s used', () => {
+        expect(RelayTaskQueue.mock.instances.length).toBe(0);
+        RelayTaskScheduler.enqueue(() => {});
+        expect(RelayTaskQueue.mock.instances.length).toBe(1);
+        expect(RelayTaskQueue.prototype.constructor).toBeCalledWith(
+          mockScheduler
+        );
+        RelayTaskScheduler.enqueue(() => {});
+        expect(RelayTaskQueue.mock.instances.length).toBe(1);
+      });
 
-      // Scheduler only sees one task at a time.
-      expect(mockTasks.length).toBe(1);
-      mockTasks[0]();
-      expect(mockOrdering).toEqual(['foo']);
-
-      // Scheduler only sees the next task after `resolveImmediate`.
-      expect(mockTasks.length).toBe(1);
-
-      jest.runAllTimers();
-
-      expect(mockTasks.length).toBe(2);
-      mockTasks[1]();
-      expect(mockOrdering).toEqual(['foo', 'bar']);
-
-      jest.runAllTimers();
-
-      expect(mockTasks.length).toBe(3);
-      mockTasks[2]();
-      expect(mockOrdering).toEqual(['foo', 'bar', 'baz']);
-    });
-
-    it('throws if the same task is executed more than once', () => {
-      RelayTaskScheduler.injectScheduler(mockScheduler);
-
-      var mockFunction = jest.genMockFunction();
-      RelayTaskScheduler.await(mockFunction);
-
-      jest.runAllTimers();
-
-      mockTasks[0]();
-
-      expect(() => {
-        mockTasks[0]();
-      }).toFailInvariant(
-        'RelayTaskScheduler: Tasks can only be executed once.'
-      );
+      it('uses the injected scheduler to schedule tasks', () => {
+        jest.dontMock('RelayTaskQueue');
+        const mockTask = () => {};
+        RelayTaskScheduler.enqueue(mockTask);
+        expect(mockScheduler).toBeCalled();
+      });
     });
   });
 });

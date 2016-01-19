@@ -11,11 +11,11 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
-var Relay = require('Relay');
-var RelayConnectionInterface = require('RelayConnectionInterface');
+const Relay = require('Relay');
+const RelayConnectionInterface = require('RelayConnectionInterface');
+const RelayTestUtils = require('RelayTestUtils');
 
 describe('RelayQueryMutation', () => {
   var {getNode} = RelayTestUtils;
@@ -23,7 +23,7 @@ describe('RelayQueryMutation', () => {
   beforeEach(() => {
     jest.resetModuleRegistry();
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   it('creates mutations', () => {

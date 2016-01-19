@@ -11,23 +11,24 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
 jest
   .mock('warning')
   .dontMock('DliteFetchModeConstants')
-  .dontMock('GraphQLQueryRunner');
+  .dontMock('GraphQLQueryRunner')
+  .dontMock('RelayTaskQueue');
 
-var DliteFetchModeConstants = require('DliteFetchModeConstants');
-var Relay = require('Relay');
-var RelayNetworkLayer = require('RelayNetworkLayer');
-var RelayStoreData = require('RelayStoreData');
+const DliteFetchModeConstants = require('DliteFetchModeConstants');
+const Relay = require('Relay');
+const RelayNetworkLayer = require('RelayNetworkLayer');
+const RelayStoreData = require('RelayStoreData');
+const RelayTestUtils = require('RelayTestUtils');
 
-var checkRelayQueryData = require('checkRelayQueryData');
-var diffRelayQuery = require('diffRelayQuery');
-var splitDeferredRelayQueries = require('splitDeferredRelayQueries');
-var warning = require('warning');
+const checkRelayQueryData = require('checkRelayQueryData');
+const diffRelayQuery = require('diffRelayQuery');
+const splitDeferredRelayQueries = require('splitDeferredRelayQueries');
+const warning = require('warning');
 
 describe('GraphQLQueryRunner', () => {
   var queryRunner;
@@ -44,7 +45,7 @@ describe('GraphQLQueryRunner', () => {
    */
   function deferQuery(relayQuery) {
     var node = {
-      ...relayQuery.__concreteNode__,
+      ...relayQuery.getConcreteQueryNode(),
       isDeferred: true,
     };
     return getNode(node, relayQuery.getVariables());
@@ -77,7 +78,7 @@ describe('GraphQLQueryRunner', () => {
       baz: null,
     };
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   it('immediately succeeds for empty queries', () => {
@@ -452,7 +453,7 @@ describe('GraphQLQueryRunner', () => {
         ].map(query => ({
           required: deferQuery(getNode(query)),
           deferred: [],
-        }))
+        })),
       };
 
       splitDeferredRelayQueries.mockImplementation(query => {

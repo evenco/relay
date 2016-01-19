@@ -13,12 +13,12 @@
 
 'use strict';
 
-var GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
-var RelayQuery = require('RelayQuery');
+const GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
+const RelayQuery = require('RelayQuery');
 import type RelayRecordStore from 'RelayRecordStore';
 
-var invariant = require('invariant');
-var shallowEqual = require('shallowEqual');
+const invariant = require('invariant');
+const shallowEqual = require('shallowEqual');
 
 import type {DataID} from 'RelayInternalTypes';
 
@@ -47,7 +47,7 @@ class GraphQLFragmentPointer {
     if (!fragment) {
       return null;
     }
-    var concreteFragmentID = fragment.getConcreteFragmentID();
+    const fragmentHash = fragment.getConcreteNodeHash();
     const storageKey = query.getStorageKey();
     const identifyingArg = query.getIdentifyingArg();
     const identifyingArgValue =
@@ -60,7 +60,7 @@ class GraphQLFragmentPointer {
           return null;
         }
         var pointer = GraphQLStoreDataHandler.createPointerWithID(dataID);
-        pointer[concreteFragmentID] =
+        pointer[fragmentHash] =
           new GraphQLFragmentPointer([dataID], rootFragment);
         return (pointer: $FlowIssue);
       });
@@ -81,7 +81,7 @@ class GraphQLFragmentPointer {
     var result = {};
     // TODO(t7765591): Throw if `fragment` is not optional.
     var fragmentPointer = new GraphQLFragmentPointer(dataIDOrIDs, fragment);
-    result[concreteFragmentID] = fragmentPointer;
+    result[fragmentHash] = fragmentPointer;
     return result;
   }
 
@@ -139,7 +139,6 @@ class GraphQLFragmentPointer {
    * @unstable
    *
    * For debugging only, do not rely on this for comparing values at runtime.
-   * Instead, use `pointer.getFragment().getFragmentID()`.
    */
   toString(): string {
     return (

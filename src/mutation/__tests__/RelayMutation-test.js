@@ -11,16 +11,17 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
 jest
   .dontMock('RelayMutation')
   .dontMock('buildRQL');
 
-var Relay = require('Relay');
-var buildRQL = require('buildRQL');
-var fromGraphQL = require('fromGraphQL');
+const Relay = require('Relay');
+const RelayTestUtils = require('RelayTestUtils');
+
+const buildRQL = require('buildRQL');
+const fromGraphQL = require('fromGraphQL');
 
 describe('RelayMutation', function() {
   var MockMutation;
@@ -57,7 +58,7 @@ describe('RelayMutation', function() {
     mockBarPointer = getPointer('bar', getNode(mockBarRequiredFragment));
     mockFooPointer = getPointer('foo', getNode(mockFooRequiredFragment));
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   it('resolves props', () => {

@@ -11,12 +11,13 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
-var Relay = require('Relay');
-var generateRQLFieldAlias = require('generateRQLFieldAlias');
-var transformRelayQueryPayload = require('transformRelayQueryPayload');
+const Relay = require('Relay');
+const RelayTestUtils = require('RelayTestUtils');
+
+const generateRQLFieldAlias = require('generateRQLFieldAlias');
+const transformRelayQueryPayload = require('transformRelayQueryPayload');
 
 describe('transformClientPayload()', () => {
   var {getNode} = RelayTestUtils;
@@ -62,6 +63,7 @@ describe('transformClientPayload()', () => {
     };
     expect(transformRelayQueryPayload(query, payload)).toEqual({
       node: {
+        __typename: undefined,
         id: '123',
         [generateRQLFieldAlias('friends.first(1)')]: {
           count: 1,
@@ -76,6 +78,7 @@ describe('transformClientPayload()', () => {
               },
             },
           ],
+          pageInfo: undefined,
         },
       },
     });
@@ -109,12 +112,14 @@ describe('transformClientPayload()', () => {
     };
     expect(transformRelayQueryPayload(query, payload)).toEqual({
       123: {
+        __typename: undefined,
         id: '123',
         [generateRQLFieldAlias('profilePicture.size(32)')]: {
           uri: '123.jpg',
         },
       },
       456: {
+        __typename: undefined,
         id: '456',
         [generateRQLFieldAlias('profilePicture.size(32)')]: {
           uri: '456.jpg',
@@ -151,12 +156,14 @@ describe('transformClientPayload()', () => {
     ];
     expect(transformRelayQueryPayload(query, payload)).toEqual([
       {
+        __typename: undefined,
         id: '123',
         [generateRQLFieldAlias('profilePicture.size(32)')]: {
           uri: '123.jpg',
         },
       },
       {
+        __typename: undefined,
         id: '456',
         [generateRQLFieldAlias('profilePicture.size(32)')]: {
           uri: '456.jpg',
@@ -196,12 +203,14 @@ describe('transformClientPayload()', () => {
     expect(transformRelayQueryPayload(query, payload)).toEqual({
       nodes: [
         {
+          __typename: undefined,
           id: '123',
           [generateRQLFieldAlias('profilePicture.size(32)')]: {
             uri: '123.jpg',
           },
         },
         {
+          __typename: undefined,
           id: '456',
           [generateRQLFieldAlias('profilePicture.size(32)')]: {
             uri: '456.jpg',

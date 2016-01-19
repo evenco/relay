@@ -11,18 +11,16 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
 jest
-  .dontMock('GraphQLMutatorConstants')
   .dontMock('GraphQLRange')
   .dontMock('GraphQLSegment');
 
-var RelayConnectionInterface = require('RelayConnectionInterface');
-var RelayStoreData = require('RelayStoreData');
-
-var RelayStoreGarbageCollector = require('RelayStoreGarbageCollector');
+const RelayConnectionInterface = require('RelayConnectionInterface');
+const RelayStoreData = require('RelayStoreData');
+const RelayGarbageCollector = require('RelayGarbageCollector');
+const RelayTestUtils = require('RelayTestUtils');
 
 describe('RelayStoreData', () => {
   var Relay;
@@ -35,7 +33,7 @@ describe('RelayStoreData', () => {
     // @side-effect related to garbage collection
     Relay = require('Relay');
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   describe('handleQueryPayload', () => {
@@ -60,6 +58,7 @@ describe('RelayStoreData', () => {
           topLevelComments: {
             count: 1,
           },
+          __typename: 'Story',
         },
       };
       storeData.handleQueryPayload(query, response);
@@ -97,6 +96,7 @@ describe('RelayStoreData', () => {
           topLevelComments: {
             count: 1,
           },
+          __typename: 'Story',
         },
       };
       storeData.handleQueryPayload(query, response);
@@ -206,7 +206,10 @@ describe('RelayStoreData', () => {
 
       // `records` is unchanged
       expect(storeData.getNodeData()).toEqual({
-        '123': {__dataID__: '123'},
+        '123': {
+          __dataID__: '123',
+          __typename: undefined,
+        },
       });
     });
 
@@ -240,7 +243,8 @@ describe('RelayStoreData', () => {
             topLevelComments: {
               count: 1,
             },
-          }
+            __typename: 'Story',
+          },
         };
         storeData.handleQueryPayload(query, response);
 
@@ -372,9 +376,11 @@ describe('RelayStoreData', () => {
   describe('garbage collection', () => {
     it('initializes the garbage collector if no data has been added', () => {
       var data = new RelayStoreData();
-      expect(RelayStoreGarbageCollector.mock.instances.length).toBe(0);
+      expect(data.getGarbageCollector()).toBe(undefined);
       expect(() => data.initializeGarbageCollector()).not.toThrow();
-      expect(RelayStoreGarbageCollector.mock.instances.length).toBe(1);
+      expect(
+        data.getGarbageCollector() instanceof RelayGarbageCollector
+      ).toBe(true);
     });
 
     it('warns if initialized after data has been added', () => {
@@ -397,6 +403,7 @@ describe('RelayStoreData', () => {
       'registers created dataIDs in the garbage collector if it has been ' +
       'initialized',
       () => {
+        RelayGarbageCollector.prototype.register = jest.genMockFunction();
         var response = {node: {id: 0}};
         var data = new RelayStoreData();
         data.initializeGarbageCollector();

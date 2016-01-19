@@ -11,11 +11,12 @@
 
 'use strict';
 
-const RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
 const Relay = require('Relay');
 const RelayConnectionInterface = require('RelayConnectionInterface');
+const RelayTestUtils = require('RelayTestUtils');
+
 const flattenRelayQuery = require('flattenRelayQuery');
 const inferRelayFieldsFromData = require('inferRelayFieldsFromData');
 
@@ -32,13 +33,17 @@ describe('inferRelayFieldsFromData', () => {
       PAGE_INFO,
     } = RelayConnectionInterface);
 
-    jest.addMatchers({
+    jasmine.addMatchers({
       ...RelayTestUtils.matchers,
-      toEqualFields(expected) {
-        expected = flattenRelayQuery(getVerbatimNode(expected));
-        this.actual = flattenRelayQuery(expected.clone(this.actual));
-        // NOTE: Generated fields might get in the way.
-        return matchers.toEqualQueryNode.call(this, expected);
+      toEqualFields() {
+        return {
+          compare(actual, expected) {
+            expected = flattenRelayQuery(getVerbatimNode(expected));
+            actual = flattenRelayQuery(expected.clone(actual));
+            // NOTE: Generated fields might get in the way.
+            return matchers.toEqualQueryNode().compare(actual, expected);
+          },
+        };
       },
     });
   });

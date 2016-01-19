@@ -15,20 +15,20 @@
 
 import type {ConcreteFragment} from 'ConcreteQuery';
 import type {RelayConcreteNode} from 'RelayQL';
-var RelayFragmentReference = require('RelayFragmentReference');
+const RelayFragmentReference = require('RelayFragmentReference');
 import type RelayMetaRoute from 'RelayMetaRoute';
-var RelayStore = require('RelayStore');
+const RelayStore = require('RelayStore');
 import type {
   RelayMutationConfig,
   Variables,
 } from 'RelayTypes';
 
-var buildRQL = require('buildRQL');
+const buildRQL = require('buildRQL');
 import type {RelayQLFragmentBuilder} from 'buildRQL';
-var forEachObject = require('forEachObject');
-var fromGraphQL = require('fromGraphQL');
-var invariant = require('invariant');
-var warning = require('warning');
+const forEachObject = require('forEachObject');
+const fromGraphQL = require('fromGraphQL');
+const invariant = require('invariant');
+const warning = require('warning');
 
 export type FileMap = {[key: string]: File};
 export type RelayMutationFragments<Tk> = {
@@ -42,6 +42,7 @@ export type RelayMutationFragments<Tk> = {
  */
 class RelayMutation<Tp: Object> {
   static name: $FlowIssue;
+  /* $FlowIssue(>=0.20.0) #9410317 */
   static fragments: RelayMutationFragments<$Keys<Tp>>;
   static initialVariables: Variables;
   static prepareVariables: ?(
@@ -254,7 +255,7 @@ class RelayMutation<Tp: Object> {
         fragmentBuilder,
         initialVariables
       ));
-      var concreteFragmentID = fragment.getConcreteFragmentID();
+      var fragmentHash = fragment.getConcreteNodeHash();
 
       if (fragment.isPlural()) {
         invariant(
@@ -265,7 +266,7 @@ class RelayMutation<Tp: Object> {
           this.constructor.name
         );
         var dataIDs = propValue.reduce((acc, item, ii) => {
-          var eachFragmentPointer = item[concreteFragmentID];
+          var eachFragmentPointer = item[fragmentHash];
           invariant(
             eachFragmentPointer,
             'RelayMutation: Invalid prop `%s` supplied to `%s`, ' +
@@ -286,7 +287,7 @@ class RelayMutation<Tp: Object> {
           fragmentName,
           this.constructor.name
         );
-        var fragmentPointer = propValue[concreteFragmentID];
+        var fragmentPointer = propValue[fragmentHash];
         if (fragmentPointer) {
           var dataID = fragmentPointer.getDataID();
           resolvedProps[fragmentName] = RelayStore.read(fragment, dataID);
@@ -342,20 +343,6 @@ class RelayMutation<Tp: Object> {
       initialVariables,
       variableMapping,
       prepareVariables
-    );
-  }
-
-  /**
-   * @deprecated
-   *
-   * TODO(jkassens, #8978552): delete this
-   */
-  static getQuery(): RelayFragmentReference {
-    invariant(
-      false,
-      'RelayMutation: `%s.getQuery` no longer exists; use `%s.getFragment`.',
-      this.name,
-      this.name
     );
   }
 }

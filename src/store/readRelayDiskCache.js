@@ -13,27 +13,28 @@
 
 'use strict';
 
-var GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
+const GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
+const RelayChangeTracker = require('RelayChangeTracker');
 import type {
   DataID,
   Records,
   RelayQuerySet,
   RootCallMap,
 } from 'RelayInternalTypes';
-var RelayQuery = require('RelayQuery');
-var RelayQueryPath = require('RelayQueryPath');
+const RelayQuery = require('RelayQuery');
+const RelayQueryPath = require('RelayQueryPath');
 import type RelayRecordStore from 'RelayRecordStore';
 import type {CacheManager, CacheReadCallbacks} from 'RelayTypes';
 
-var findRelayQueryLeaves = require('findRelayQueryLeaves');
+const findRelayQueryLeaves = require('findRelayQueryLeaves');
 import type {
   PendingItem,
   PendingNodes,
 } from 'findRelayQueryLeaves';
-var forEachObject = require('forEachObject');
-var forEachRootCallArg = require('forEachRootCallArg');
-var invariant = require('invariant');
-var isEmpty = require('isEmpty');
+const forEachObject = require('forEachObject');
+const forEachRootCallArg = require('forEachRootCallArg');
+const invariant = require('invariant');
+const isEmpty = require('isEmpty');
 
 type PendingRoots = {[key: string]: Array<RelayQuery.Root>};
 
@@ -48,6 +49,7 @@ function readRelayDiskCache(
   cachedRecords: Records,
   cachedRootCallMap: RootCallMap,
   cacheManager: CacheManager,
+  changeTracker: RelayChangeTracker,
   callbacks: CacheReadCallbacks
 ): void {
   var reader = new RelayCacheReader(
@@ -55,6 +57,7 @@ function readRelayDiskCache(
     cachedRecords,
     cachedRootCallMap,
     cacheManager,
+    changeTracker,
     callbacks
   );
 
@@ -67,6 +70,7 @@ class RelayCacheReader {
   _cachedRootCallMap: RootCallMap;
   _cacheManager: CacheManager;
   _callbacks: CacheReadCallbacks;
+  _changeTracker: RelayChangeTracker;
   _hasFailed: boolean;
   _pendingNodes: PendingNodes;
   _pendingRoots: PendingRoots;
@@ -76,6 +80,7 @@ class RelayCacheReader {
     cachedRecords: Records,
     cachedRootCallMap: RootCallMap,
     cacheManager: CacheManager,
+    changeTracker: RelayChangeTracker,
     callbacks: CacheReadCallbacks,
   ) {
     this._store = store;
@@ -83,6 +88,7 @@ class RelayCacheReader {
     this._cachedRootCallMap = cachedRootCallMap;
     this._cacheManager = cacheManager;
     this._callbacks = callbacks;
+    this._changeTracker = changeTracker;
 
     this._hasFailed = false;
     this._pendingNodes = {};
@@ -167,7 +173,8 @@ class RelayCacheReader {
           this._cachedRootCallMap[storageKey] =
             this._cachedRootCallMap[storageKey] || {};
           this._cachedRootCallMap[storageKey][identifyingArgValue] = value;
-          if (value == null) {
+          if (this._cachedRootCallMap[storageKey][identifyingArgValue] ==
+              null) {
             // Read from cache and we still don't have valid `dataID`.
             this._handleFailed();
           } else {
@@ -231,10 +238,24 @@ class RelayCacheReader {
           if (value && GraphQLStoreDataHandler.isClientID(dataID)) {
             value.__path__ = pendingItems[0].path;
           }
+          // Mark records as created/updated as necessary. Note that if the
+          // record is known to be deleted in the store then it will have been
+          // been marked as created already. Further, it does not need to be
+          // updated since no additional data can be read about a deleted node.
+          const recordState = this._store.getRecordState(dataID);
+          if (recordState === 'UNKNOWN' && value !== undefined) {
+            // Mark as created if the store did not have a value but disk cache
+            // did (either a known value or known deletion).
+            this._changeTracker.createID(dataID);
+          } else if (recordState === 'EXISTENT' && value != null) {
+            // Mark as updated only if a record exists in both the store and
+            // disk cache.
+            this._changeTracker.updateID(dataID);
+          }
           this._cachedRecords[dataID] = value;
           var items = this._pendingNodes[dataID];
           delete this._pendingNodes[dataID];
-          if (value === undefined) {
+          if (this._cachedRecords[dataID] === undefined) {
             // We are out of luck if disk doesn't have the node either.
             this._handleFailed();
           } else {

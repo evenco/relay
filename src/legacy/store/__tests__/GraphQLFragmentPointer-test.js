@@ -11,14 +11,14 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
 jest.dontMock('GraphQLFragmentPointer');
 
-var GraphQLFragmentPointer = require('GraphQLFragmentPointer');
-var Relay = require('Relay');
-var RelayRecordStore = require('RelayRecordStore');
+const GraphQLFragmentPointer = require('GraphQLFragmentPointer');
+const Relay = require('Relay');
+const RelayRecordStore = require('RelayRecordStore');
+const RelayTestUtils = require('RelayTestUtils');
 
 describe('GraphQLFragmentPointer', () => {
   var {getNode, getRefNode} = RelayTestUtils;
@@ -26,11 +26,17 @@ describe('GraphQLFragmentPointer', () => {
   beforeEach(() => {
     jest.resetModuleRegistry();
 
-    jest.addMatchers(RelayTestUtils.matchers);
-    jest.addMatchers({
-      toEqualPointer(expected) {
-        return this.actual.equals(expected);
-      }
+    jasmine.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers({
+      toEqualPointer() {
+        return {
+          compare(actual, expected) {
+            return {
+              pass: actual.equals(expected),
+            };
+          },
+        };
+      },
     });
   });
 

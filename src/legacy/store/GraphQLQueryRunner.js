@@ -13,31 +13,31 @@
 
 'use strict';
 
-var DliteFetchModeConstants = require('DliteFetchModeConstants');
+const DliteFetchModeConstants = require('DliteFetchModeConstants');
 import type {RelayQuerySet} from 'RelayInternalTypes';
 import type {PendingFetch} from 'RelayPendingQueryTracker';
-var RelayNetworkLayer = require('RelayNetworkLayer');
-var RelayProfiler = require('RelayProfiler');
+const RelayNetworkLayer = require('RelayNetworkLayer');
+const RelayProfiler = require('RelayProfiler');
 import type RelayQuery from 'RelayQuery';
 import type RelayStoreData from 'RelayStoreData';
-var RelayTaskScheduler = require('RelayTaskScheduler');
+const RelayTaskScheduler = require('RelayTaskScheduler');
 
-var checkRelayQueryData = require('checkRelayQueryData');
-var diffRelayQuery = require('diffRelayQuery');
-var everyObject = require('everyObject');
-var flattenSplitRelayQueries = require('flattenSplitRelayQueries');
-var forEachObject = require('forEachObject');
-var generateForceIndex = require('generateForceIndex');
-var invariant = require('invariant');
-var mapObject = require('mapObject');
-var resolveImmediate = require('resolveImmediate');
-var someObject = require('someObject');
-var splitDeferredRelayQueries = require('splitDeferredRelayQueries');
-var warning = require('warning');
+const checkRelayQueryData = require('checkRelayQueryData');
+const diffRelayQuery = require('diffRelayQuery');
+const everyObject = require('everyObject');
+const flattenSplitRelayQueries = require('flattenSplitRelayQueries');
+const forEachObject = require('forEachObject');
+const generateForceIndex = require('generateForceIndex');
+const invariant = require('invariant');
+const mapObject = require('mapObject');
+const resolveImmediate = require('resolveImmediate');
+const someObject = require('someObject');
+const splitDeferredRelayQueries = require('splitDeferredRelayQueries');
+const warning = require('warning');
 
 import type {
   Abortable,
-  ReadyStateChangeCallback
+  ReadyStateChangeCallback,
 } from 'RelayTypes';
 
 type PartialReadyState = {
@@ -141,21 +141,18 @@ function splitAndFlattenQueries(
   queries: Array<RelayQuery.Root>
 ): Array<RelayQuery.Root> {
   if (!RelayNetworkLayer.supports('defer')) {
-    var hasDeferredDescendant = queries.some(query => {
-      if (query.hasDeferredDescendant()) {
+    if (__DEV__) {
+      queries.forEach(query => {
         warning(
-          false,
+          !query.hasDeferredDescendant(),
           'Relay: Query `%s` contains a deferred fragment (e.g. ' +
           '`getFragment(\'foo\').defer()`) which is not supported by the ' +
           'default network layer. This query will be sent without deferral.',
           query.getName()
         );
-        return true;
-      }
-    });
-    if (hasDeferredDescendant) {
-      return queries;
+      });
     }
+    return queries;
   }
 
   var flattenedQueries = [];
@@ -258,7 +255,7 @@ function runQueries(
     );
   }
 
-  RelayTaskScheduler.await(() => {
+  RelayTaskScheduler.enqueue(() => {
     var forceIndex = fetchMode === DliteFetchModeConstants.FETCH_MODE_REFETCH ?
       generateForceIndex() : null;
 

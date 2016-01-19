@@ -11,14 +11,15 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
-var Relay = require('Relay');
-var RelayQuery = require('RelayQuery');
-var flattenRelayQuery = require('flattenRelayQuery');
-var generateRQLFieldAlias = require('generateRQLFieldAlias');
-var splitDeferredRelayQueries = require('splitDeferredRelayQueries');
+const Relay = require('Relay');
+const RelayQuery = require('RelayQuery');
+const RelayTestUtils = require('RelayTestUtils');
+
+const flattenRelayQuery = require('flattenRelayQuery');
+const generateRQLFieldAlias = require('generateRQLFieldAlias');
+const splitDeferredRelayQueries = require('splitDeferredRelayQueries');
 
 describe('splitDeferredRelayQueries()', () => {
   // helper functions
@@ -37,7 +38,7 @@ describe('splitDeferredRelayQueries()', () => {
     // Reset query numbers back to q0.
     jest.resetModuleRegistry();
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   it('returns the original query when there are no fragments', () => {

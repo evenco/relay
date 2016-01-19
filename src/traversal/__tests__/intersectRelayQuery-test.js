@@ -11,17 +11,18 @@
 
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
-var Relay = require('Relay');
-var intersectRelayQuery = require('intersectRelayQuery');
+const Relay = require('Relay');
+const RelayTestUtils = require('RelayTestUtils');
+
+const intersectRelayQuery = require('intersectRelayQuery');
 
 describe('intersectRelayQuery', () => {
   var {getNode} = RelayTestUtils;
 
   beforeEach(() => {
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   describe('fields', () => {

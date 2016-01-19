@@ -11,17 +11,18 @@
 
 'use strict';
 
+require('configureForRelayOSS');
+
 jest
   .dontMock('GraphQLRange')
   .dontMock('GraphQLSegment');
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+const Relay = require('Relay');
+const RelayQueryPath = require('RelayQueryPath');
+const RelayQueryTracker = require('RelayQueryTracker');
+const RelayTestUtils = require('RelayTestUtils');
 
-var Relay = require('Relay');
-var RelayQueryPath = require('RelayQueryPath');
-var RelayQueryTracker = require('RelayQueryTracker');
-var invariant = require('invariant');
+const invariant = require('invariant');
 
 describe('writePayload()', () => {
   var RelayRecordStore;
@@ -50,7 +51,7 @@ describe('writePayload()', () => {
 
     RelayRecordStore = require('RelayRecordStore');
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   describe('paths', () => {
@@ -70,6 +71,7 @@ describe('writePayload()', () => {
         viewer: {
           actor: {
             id: '123',
+            __typename: 'User',
           },
         },
       };
@@ -79,7 +81,7 @@ describe('writePayload()', () => {
           'client:1': true,
           '123': true,
         },
-        updated: {}
+        updated: {},
       });
 
       // viewer has a client id and must be refetched by the original root call
@@ -104,6 +106,7 @@ describe('writePayload()', () => {
       var payload = {
         node: {
           id: '123',
+          __typename: 'User',
         },
       };
       var results = writePayload(store, query, payload);
@@ -111,7 +114,7 @@ describe('writePayload()', () => {
         created: {
           '123': true,
         },
-        updated: {}
+        updated: {},
       });
 
       expect(store.getRecordState('123')).toBe('EXISTENT');
@@ -139,6 +142,7 @@ describe('writePayload()', () => {
             address: {
               city: 'San Francisco',
             },
+            __typename: 'User',
           },
         },
       };
@@ -288,6 +292,7 @@ describe('writePayload()', () => {
         viewer: {
           actor: {
             name: 'Joe',
+            __typename: 'User',
           },
         },
       };
@@ -320,6 +325,7 @@ describe('writePayload()', () => {
         node: {
           id: '123',
           name: 'Joe',
+          __typename: 'User',
         },
       };
       writePayload(store, query, payload, tracker);
@@ -350,6 +356,7 @@ describe('writePayload()', () => {
           address: {
             city: 'San Francisco',
           },
+          __typename: 'User',
         },
       };
       var addressID = 'client:1';
@@ -384,6 +391,7 @@ describe('writePayload()', () => {
           actor: {
             id: '123',
             name: 'Joe',
+            __typename: 'User',
           },
         },
       };
@@ -636,6 +644,7 @@ describe('writePayload()', () => {
               },
             ],
           },
+          __typename: 'User',
         },
       };
       // populate the store and record the original tracked queries

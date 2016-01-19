@@ -14,14 +14,12 @@
 'use strict';
 
 const GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
+import type {DataID} from 'RelayInternalTypes';
 const RelayNodeInterface = require('RelayNodeInterface');
 const RelayQuery = require('RelayQuery');
-
-const invariant = require('invariant');
-
 import type RelayQueryPath from 'RelayQueryPath';
 
-import type {DataID} from 'RelayInternalTypes';
+const invariant = require('invariant');
 
 const TYPE = '__type__';
 

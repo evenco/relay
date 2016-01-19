@@ -9,23 +9,21 @@
  * @emails oncall+relay
  */
 
-/* eslint-disable indent */
-
 'use strict';
 
-var RelayTestUtils = require('RelayTestUtils');
-RelayTestUtils.unmockRelay();
+require('configureForRelayOSS');
 
 jest
   .dontMock('GraphQLRange')
   .dontMock('GraphQLSegment')
   .mock('warning');
 
-var Relay = require('Relay');
-var RelayConnectionInterface = require('RelayConnectionInterface');
-var RelayNodeInterface = require('RelayNodeInterface');
-var RelayQueryTracker = require('RelayQueryTracker');
-var diffRelayQuery = require('diffRelayQuery');
+const Relay = require('Relay');
+const RelayConnectionInterface = require('RelayConnectionInterface');
+const RelayQueryTracker = require('RelayQueryTracker');
+const RelayTestUtils = require('RelayTestUtils');
+
+const diffRelayQuery = require('diffRelayQuery');
 
 describe('diffRelayQuery', () => {
   var RelayRecordStore;
@@ -46,7 +44,7 @@ describe('diffRelayQuery', () => {
       'viewer': {'': 'client:1'},
     };
 
-    jest.addMatchers(RelayTestUtils.matchers);
+    jasmine.addMatchers(RelayTestUtils.matchers);
   });
 
   it('returns unfetched connections as-is', () => {

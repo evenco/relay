@@ -14,24 +14,23 @@
 'use strict';
 
 import type {ConcreteFragment} from 'ConcreteQuery';
-var ErrorUtils = require('ErrorUtils');
-var GraphQLFragmentPointer = require('GraphQLFragmentPointer');
-var GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
-var GraphQLStoreQueryResolver = require('GraphQLStoreQueryResolver');
-var React = require('React');
-var unstable_batchedUpdates = require('RelayUnstableBatchedUpdates');
-var RelayContainerComparators = require('RelayContainerComparators');
-var RelayContainerProxy = require('RelayContainerProxy');
-var RelayDeprecated = require('RelayDeprecated');
-var RelayFragmentReference = require('RelayFragmentReference');
-import type {DataID, RelayQuerySet} from 'RelayInternalTypes';
-var RelayMetaRoute = require('RelayMetaRoute');
-var RelayMutationTransaction = require('RelayMutationTransaction');
-var RelayPropTypes = require('RelayPropTypes');
-var RelayProfiler = require('RelayProfiler');
-var RelayQuery = require('RelayQuery');
-var RelayStore = require('RelayStore');
-var RelayStoreData = require('RelayStoreData');
+const ErrorUtils = require('ErrorUtils');
+const GraphQLFragmentPointer = require('GraphQLFragmentPointer');
+const GraphQLStoreDataHandler = require('GraphQLStoreDataHandler');
+const GraphQLStoreQueryResolver = require('GraphQLStoreQueryResolver');
+const React = require('React');
+const unstable_batchedUpdates = require('RelayUnstableBatchedUpdates');
+const RelayContainerComparators = require('RelayContainerComparators');
+const RelayContainerProxy = require('RelayContainerProxy');
+const RelayFragmentReference = require('RelayFragmentReference');
+import type {RelayQuerySet} from 'RelayInternalTypes';
+const RelayMetaRoute = require('RelayMetaRoute');
+const RelayMutationTransaction = require('RelayMutationTransaction');
+const RelayPropTypes = require('RelayPropTypes');
+const RelayProfiler = require('RelayProfiler');
+const RelayQuery = require('RelayQuery');
+const RelayStore = require('RelayStore');
+const RelayStoreData = require('RelayStoreData');
 import type {
   Abortable,
   ComponentReadyStateChangeCallback,
@@ -42,14 +41,15 @@ import type {
 } from 'RelayTypes';
 import type URI from 'URI';
 
-var buildRQL = require('buildRQL');
+const buildRQL = require('buildRQL');
 import type {RelayQLFragmentBuilder, RelayQLQueryBuilder} from 'buildRQL';
-var forEachObject = require('forEachObject');
-var invariant = require('invariant');
-var nullthrows = require('nullthrows');
-var prepareRelayContainerProps = require('prepareRelayContainerProps');
-var shallowEqual = require('shallowEqual');
-var warning = require('warning');
+const forEachObject = require('forEachObject');
+const invariant = require('invariant');
+const nullthrows = require('nullthrows');
+const prepareRelayContainerProps = require('prepareRelayContainerProps');
+const shallowEqual = require('shallowEqual');
+const warning = require('warning');
+const isReactComponent = require('isReactComponent');
 
 export type RelayContainerSpec = {
   initialVariables?: Variables;
@@ -76,7 +76,6 @@ export type RootQueries = {
 var containerContextTypes = {
   route: RelayPropTypes.QueryConfig.isRequired,
 };
-var nextContainerID = 0;
 
 var storeData = RelayStoreData.getDefaultInstance();
 
@@ -99,8 +98,7 @@ storeData.getChangeEmitter().injectBatchingStrategy(
  */
 function createContainerComponent(
   Component: ReactClass,
-  spec: RelayContainerSpec,
-  containerID: string
+  spec: RelayContainerSpec
 ): RelayContainer {
   var componentName = Component.displayName || Component.name;
   var containerName = 'Relay(' + componentName + ')';
@@ -296,7 +294,10 @@ function createContainerComponent(
               }
             });
             if (callback) {
-              callback.call(this.refs.component, {...readyState, mounted});
+              callback.call(
+                this.refs.component || null,
+                {...readyState, mounted}
+              );
             }
           });
         } else {
@@ -387,7 +388,7 @@ function createContainerComponent(
       );
       return storeData.getCachedStore().hasDeferredFragmentData(
         dataID,
-        fragment.getFragmentID()
+        fragment.getCompositeHash()
       );
     }
 
@@ -493,7 +494,7 @@ function createContainerComponent(
     ): void {
       const fragmentPointers = this._fragmentPointers;
       fragmentNames.forEach(fragmentName => {
-        var propValue = props[fragmentName];
+        const propValue = props[fragmentName];
         warning(
           propValue !== undefined,
           'RelayContainer: Expected query `%s` to be supplied to `%s` as ' +
@@ -506,9 +507,9 @@ function createContainerComponent(
           fragmentPointers[fragmentName] = null;
           return;
         }
-        var fragment = getFragment(fragmentName, route, variables);
-        var concreteFragmentID = fragment.getConcreteFragmentID();
-        var dataIDOrIDs;
+        const fragment = getFragment(fragmentName, route, variables);
+        const fragmentHash = fragment.getConcreteNodeHash();
+        let dataIDOrIDs;
 
         if (fragment.isPlural()) {
           // Plural fragments require the prop value to be an array of fragment
@@ -523,7 +524,7 @@ function createContainerComponent(
           );
           if (propValue.length) {
             dataIDOrIDs = propValue.reduce((acc, item, ii) => {
-              var eachFragmentPointer = item[concreteFragmentID];
+              const eachFragmentPointer = item[fragmentHash];
               invariant(
                 eachFragmentPointer,
                 'RelayContainer: Invalid prop `%s` supplied to `%s`, ' +
@@ -547,7 +548,7 @@ function createContainerComponent(
             fragmentName,
             componentName
           );
-          var fragmentPointer = propValue[concreteFragmentID];
+          const fragmentPointer = propValue[fragmentHash];
           if (fragmentPointer) {
             dataIDOrIDs = fragmentPointer.getDataID();
           } else {
@@ -580,12 +581,12 @@ function createContainerComponent(
             return;
           }
           const fragment = getFragment(fragmentName, route, variables);
-          const concreteFragmentID = fragment.getConcreteFragmentID();
+          const fragmentHash = fragment.getConcreteNodeHash();
           Object.keys(props).forEach(propName => {
             warning(
               fragmentPointers[propName] ||
               !props[propName] ||
-              !props[propName][concreteFragmentID],
+              !props[propName][fragmentHash],
               'RelayContainer: Expected record data for prop `%s` on `%s`, ' +
               'but it was instead on prop `%s`. Did you misspell a prop or ' +
               'pass record data into the wrong prop?',
@@ -675,7 +676,7 @@ function createContainerComponent(
           {...this.props}
           {...this.state.queryData}
           {...prepareRelayContainerProps(relayProps, this)}
-          ref="component"
+          ref={isReactComponent(Component) ? 'component' : null}
         />
       );
     }
@@ -761,13 +762,6 @@ function resetPropOverridesForVariables(
   return variables;
 }
 
-/**
- * Constructs a unique key for a deferred subscription.
- */
-function getSubscriptionKey(dataID: DataID, fragmentID: string): string {
-  return dataID + '.' + fragmentID;
-}
-
 function initializeProfiler(RelayContainer: RelayContainer): void {
   RelayProfiler.instrumentMethods(RelayContainer.prototype, {
     componentWillMount:
@@ -835,7 +829,6 @@ function getDeferredFragment(
     {
       isDeferred: true,
       isContainerFragment: fragmentReference.isContainerFragment(),
-      isTypeConditional: fragmentReference.isTypeConditional(),
     }
   );
 }
@@ -846,13 +839,10 @@ function getDeferredFragment(
  */
 function create(
   Component: ReactClass<any, any, any>,
-  maybeSpec: Object // spec: RelayContainerSpec
+  spec: RelayContainerSpec,
 ): RelayLazyContainer {
-  var spec = RelayDeprecated.upgradeContainerSpec(maybeSpec);
-
   var componentName = Component.displayName || Component.name;
   var containerName = 'Relay(' + componentName + ')';
-  var containerID = (nextContainerID++).toString(36);
 
   var fragments = spec.fragments;
   invariant(
@@ -868,7 +858,7 @@ function create(
   var Container;
   function ContainerConstructor(props, context) {
     if (!Container) {
-      Container = createContainerComponent(Component, spec, containerID);
+      Container = createContainerComponent(Component, spec);
     }
     return new Container(props, context);
   }
@@ -915,15 +905,6 @@ function create(
       initialVariables,
       variableMapping,
       prepareVariables
-    );
-  };
-  ContainerConstructor.getQuery = () => {
-    // TODO(jkassens, #8978552): delete this
-    invariant(
-      false,
-      'RelayContainer: `%s.getQuery` no longer exists; use `%s.getFragment`.',
-      componentName,
-      componentName
     );
   };
 
