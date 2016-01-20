@@ -1,7 +1,7 @@
 {
   "name": "react-relay",
   "description": "A framework for building data-driven React applications.",
-  "version": "0.6.1-even.1",
+  "version": "0.6.1-even.2",
   "keywords": [
     "graphql",
     "react",
@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "babel-runtime": "5.8.24",
-    "fbjs": "^0.5.1-even.1",
+    "fbjs": "^0.5.1-even.2",
     "react-static-container": "^1.0.0-alpha.1"
   },
   "devDependencies": {
