@@ -62,6 +62,12 @@ const containerContextTypes = {
 
 const FORWARD = 'forward';
 
+type VariablesGetter = (
+  props: Object,
+    paginationInfo: {count: number, cursor: ?string},
+    fragmentVariables: Variables,
+) => Variables;
+
 type FragmentVariablesGetter = (
   prevVars: Variables,
   totalCount: number,
@@ -71,11 +77,7 @@ export type ConnectionConfig = {
   direction?: 'backward' | 'forward',
   getConnectionFromProps?: (props: Object) => ?ConnectionData,
   getFragmentVariables?: FragmentVariablesGetter,
-  getVariables: (
-    props: Object,
-    paginationInfo: {count: number, cursor: ?string},
-    fragmentVariables: Variables,
-  ) => Variables,
+  getVariables?: VariablesGetter,
   query: GraphQLTaggedNode,
 };
 export type ConnectionData = {
@@ -245,6 +247,23 @@ function createGetFragmentVariables(
   return (prevVars: Variables, totalCount: number) => ({
     ...prevVars,
     [countVariable]: totalCount,
+  });
+}
+
+function createGetVariables(
+  metadata: ReactConnectionMetadata,
+): VariablesGetter {
+  const countVariable = metadata.count;
+  const cursorVariable = metadata.cursor;
+  invariant(
+    countVariable && cursorVariable,
+    'ReactRelayPaginationContainer: Unable to synthesize a ' +
+      'getVariables function.',
+  );
+  return (props, {count, cursor}, fragmentVariables) => ({
+    ...fragmentVariables,
+    [countVariable]: count,
+    [cursorVariable]: cursor,
   });
 }
 
@@ -504,47 +523,56 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
 
     _refetchConnection = (
       totalCount: number,
-      callback: (error: ?Error) => void,
+      variables?: ?Variables,
+      callback?: (error: ?Error) => void,
     ): ?Disposable => {
       const paginatingVariables = {
         count: totalCount,
         cursor: null,
         totalCount,
       };
-      return this._fetchPage(paginatingVariables, callback, {force: true});
+      return this._fetchPage(variables, paginatingVariables, callback, {force: true});
     };
 
     _loadMore = (
       pageSize: number,
-      callback: (error: ?Error) => void,
+      callback?: (error: ?Error) => void,
       options: ?RefetchOptions,
     ): ?Disposable => {
       const connectionData = this._getConnectionData();
       if (!connectionData) {
         return null;
       }
+      if (!this._hasMore() || this._isLoading()) {
+        if (callback) {
+          callback();
+        }
+        return null;
+      }
       const totalCount = connectionData.edgeCount + pageSize;
       if (options && options.force) {
-        return this._refetchConnection(totalCount, callback);
+        return this._refetchConnection(totalCount, null, callback);
       }
       const paginatingVariables = {
         count: pageSize,
         cursor: connectionData.cursor,
         totalCount,
       };
-      return this._fetchPage(paginatingVariables, callback, options);
+      return this._fetchPage(null, paginatingVariables, callback, options);
     };
 
     _fetchPage(
+      variables: ?Variables,
       paginatingVariables: {
         count: number,
         cursor: ?string,
         totalCount: number,
       },
-      callback: (error: ?Error) => void,
+      callback?: (error: ?Error) => void,
       options: ?RefetchOptions,
     ): ?Disposable {
-      const {environment} = assertRelayContext(this.context.relay);
+      const context = this.context;
+      const {environment} = assertRelayContext(context.relay);
       const {
         createOperationSelector,
         getOperation,
@@ -554,13 +582,16 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         ...this.props,
         ...this.state.data,
       };
-      const fragmentVariables = getVariablesFromObject(
+      const fragmentVariables = {...getVariablesFromObject(
         this.context.relay.variables,
         fragments,
         this.props,
-      );
-      const fetchVariables = connectionConfig.getVariables(
-        props,
+      ), ...variables};
+      const getVariables =
+        connectionConfig.getVariables ||
+        createGetVariables(metadata);
+      const fetchVariables = getVariables(
+        {...props, ...variables},
         {
           count: paginatingVariables.count,
           cursor: paginatingVariables.cursor,
@@ -583,12 +614,16 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
 
       const onCompleted = () => {
         this._pendingRefetch = null;
-        callback();
-        this._updateSnapshots(paginatingVariables.totalCount);
+        if (callback) {
+          callback();
+        }
+        this._updateSnapshots(paginatingVariables.totalCount, fragmentVariables);
       };
       const onError = error => {
         this._pendingRefetch = null;
-        callback(error);
+        if (callback) {
+          callback(error);
+        }
       };
 
       // Immediately retain the results of the query to prevent cached
@@ -606,6 +641,10 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         operation,
       });
       this._pendingRefetch = pendingRefetch;
+
+      // for loading state, updated variables
+      this.setState({relayProp: this._buildRelayProp(context.relay)});
+
       return {
         dispose: () => {
           // Disposing a loadMore() call should always dispose the fetch itself,
@@ -619,16 +658,8 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
       };
     }
 
-    _updateSnapshots(totalCount: number): void {
-      const {
-        getVariablesFromObject,
-      } = this.context.relay.environment.unstable_internal;
-      const prevVariables = getVariablesFromObject(
-        this.context.relay.variables,
-        fragments,
-        this.props,
-      );
-      const nextVariables = getFragmentVariables(prevVariables, totalCount);
+    _updateSnapshots(totalCount: number, fragmentVariables: Variables): void {
+      const nextVariables = getFragmentVariables(fragmentVariables, totalCount);
 
       const prevData = this._resolver.resolve();
       this._resolver.setVariables(nextVariables);
@@ -642,9 +673,9 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
       // `setState` is only required if changing the variables would change the
       // resolved data.
       // TODO #14894725: remove PaginationContainer equal check
-      if (!areEqual(prevData, nextData)) {
+      // if (!areEqual(prevData, nextData)) {
         this.setState({data: nextData});
-      }
+      // }
     }
 
     _release() {
@@ -662,6 +693,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         return (
           <ComponentClass
             {...this.props}
+            {...this._localVariables} // pass through updated variables
             {...this.state.data}
             ref={'component'} // eslint-disable-line react/no-string-refs
             relay={this.state.relayProp}
@@ -671,6 +703,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         // Stateless functional, doesn't support `ref`
         return React.createElement(Component, {
           ...this.props,
+          ...this._localVariables, // pass through updated variables
           ...this.state.data,
           relay: this.state.relayProp,
         });

@@ -134,8 +134,7 @@ class RelayModernEnvironment implements Environment {
         this._publishQueue.run();
         onNext && onNext(payload);
         onCompleted && onCompleted();
-      })
-      .catch(error => {
+      }, error => {
         if (isDisposed) {
           return;
         }
@@ -221,8 +220,7 @@ class RelayModernEnvironment implements Environment {
         this._publishQueue.commitPayload(operation.fragment, payload, updater);
         this._publishQueue.run();
         onCompleted && onCompleted(payload.errors);
-      })
-      .catch(error => {
+      }, error => {
         if (isDisposed) {
           return;
         }

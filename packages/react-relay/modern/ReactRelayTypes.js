@@ -33,6 +33,7 @@ export type RelayPaginationProp = RelayProp & {
     options?: RefetchOptions,
   ) => ?Disposable,
   refetchConnection: (
+    Variables: ?Variables,
     totalCount: number,
     callback: (error: ?Error) => void,
   ) => ?Disposable,
