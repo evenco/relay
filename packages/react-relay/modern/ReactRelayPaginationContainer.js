@@ -123,7 +123,7 @@ export type ConnectionData = {
  * total).
  *
  * ```
- * loadMore(pageSize: number, callback: (error: ?Error) => void): ?Disposable
+ * loadMore(pageSize: number, callback: ?(error: ?Error) => void): ?Disposable
  * ```
  *
  * A complete example:
@@ -524,7 +524,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
     _refetchConnection = (
       totalCount: number,
       variables?: ?Variables,
-      callback?: (error: ?Error) => void,
+      callback?: ?(error: ?Error) => void,
     ): ?Disposable => {
       const paginatingVariables = {
         count: totalCount,
@@ -536,7 +536,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
 
     _loadMore = (
       pageSize: number,
-      callback?: (error: ?Error) => void,
+      callback?: ?(error: ?Error) => void,
       options: ?RefetchOptions,
     ): ?Disposable => {
       const connectionData = this._getConnectionData();
@@ -568,7 +568,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         cursor: ?string,
         totalCount: number,
       },
-      callback?: (error: ?Error) => void,
+      callback?: ?(error: ?Error) => void,
       options: ?RefetchOptions,
     ): ?Disposable {
       const context = this.context;
@@ -614,16 +614,12 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
 
       const onCompleted = () => {
         this._pendingRefetch = null;
-        if (callback) {
-          callback();
-        }
+        callback && callback();
         this._updateSnapshots(paginatingVariables.totalCount, fragmentVariables);
       };
       const onError = error => {
         this._pendingRefetch = null;
-        if (callback) {
-          callback(error);
-        }
+        callback && callback(error);
       };
 
       // Immediately retain the results of the query to prevent cached

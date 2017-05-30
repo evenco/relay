@@ -6,25 +6,17 @@
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
  *
+ * @providesModule RelayCompilerUserError
  * @flow
- * @fullSyntaxTransform
  * @format
  */
 
 'use strict';
 
-import type {Location} from 'graphql';
-
-class RelayTransformError {
-  message: string;
-  loc: ?Location;
-  stack: string;
-
-  constructor(message: string, loc: ?Location) {
-    this.message = message;
-    this.loc = loc;
-    this.stack = new Error().stack;
+class RelayCompilerUserError extends Error {
+  constructor(message: string) {
+    super(message);
   }
 }
 
-module.exports = RelayTransformError;
+module.exports = RelayCompilerUserError;

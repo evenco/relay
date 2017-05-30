@@ -13,11 +13,14 @@
 
 'use strict';
 
+require('babel-polyfill');
+
 const RelayCodegenRunner = require('RelayCodegenRunner');
 const RelayFileIRParser = require('RelayFileIRParser');
 const RelayFileWriter = require('RelayFileWriter');
 const RelayIRTransforms = require('RelayIRTransforms');
 
+const formatGeneratedModule = require('formatGeneratedModule');
 const fs = require('fs');
 const path = require('path');
 const yargs = require('yargs');
@@ -34,12 +37,10 @@ const {
   fragmentTransforms,
   printTransforms,
   queryTransforms,
-  schemaTransforms,
+  schemaExtensions,
 } = RelayIRTransforms;
 
 import type {GraphQLSchema} from 'graphql';
-
-const SCRIPT_NAME = 'relay-compiler';
 
 function buildWatchExpression(options: {extensions: Array<string>}) {
   return [
@@ -117,7 +118,7 @@ function getRelayFileWriter(baseDir: string) {
   return (onlyValidate, schema, documents, baseDocuments) =>
     new RelayFileWriter({
       config: {
-        buildCommand: SCRIPT_NAME,
+        formatModule: formatGeneratedModule,
         compilerTransforms: {
           codegenTransforms,
           fragmentTransforms,
@@ -125,7 +126,7 @@ function getRelayFileWriter(baseDir: string) {
           queryTransforms,
         },
         baseDir,
-        schemaTransforms,
+        schemaExtensions,
       },
       onlyValidate,
       schema,
@@ -143,7 +144,6 @@ function getSchema(schemaPath: string): GraphQLSchema {
     source = `
   directive @include(if: Boolean) on FRAGMENT | FIELD
   directive @skip(if: Boolean) on FRAGMENT | FIELD
-  directive @relay(pattern: Boolean, plural: Boolean) on FRAGMENT | FIELD
 
   ${source}
   `;

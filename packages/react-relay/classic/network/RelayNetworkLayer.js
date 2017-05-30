@@ -162,7 +162,10 @@ function profileQueue(currentQueue: Array<RelayQueryRequest>): void {
   // TODO #8783781: remove aggregate `fetchRelayQuery` profiler
   let firstResultProfiler = RelayProfiler.profile('fetchRelayQuery');
   currentQueue.forEach(query => {
-    const profiler = RelayProfiler.profile('fetchRelayQuery.query');
+    const profiler = RelayProfiler.profile(
+      'fetchRelayQuery.query',
+      query.getQuery().getName(),
+    );
     const onSettle = () => {
       profiler.stop();
       if (firstResultProfiler) {
@@ -170,6 +173,10 @@ function profileQueue(currentQueue: Array<RelayQueryRequest>): void {
         firstResultProfiler = null;
       }
     };
+    /* $FlowFixMe(site=react_native_fb) - Flow now prevents you from calling a
+     * function with more arguments than it expects. This comment suppresses an
+     * error that was noticed when we made this change. Delete this comment to
+     * see the error. */
     query.done(onSettle, onSettle);
   });
 }
