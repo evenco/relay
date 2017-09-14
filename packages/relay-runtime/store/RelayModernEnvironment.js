@@ -142,7 +142,8 @@ class RelayModernEnvironment implements Environment {
           return;
         }
         onError && onError(error);
-      });
+      })
+      .catch(rethrow);
     return {dispose};
   }
 
@@ -232,7 +233,8 @@ class RelayModernEnvironment implements Environment {
         }
         this._publishQueue.run();
         onError && onError(error);
-      });
+      })
+      .catch(rethrow);
     return {dispose};
   }
 
@@ -270,5 +272,11 @@ class RelayModernEnvironment implements Environment {
 // realm-specific instanceof check, and to aid in module tree-shaking to
 // avoid requiring all of RelayRuntime just to detect its environment.
 (RelayModernEnvironment: any).prototype['@@RelayModernEnvironment'] = true;
+
+function rethrow(err) {
+  setTimeout(() => {
+    throw err;
+  }, 0);
+}
 
 module.exports = RelayModernEnvironment;

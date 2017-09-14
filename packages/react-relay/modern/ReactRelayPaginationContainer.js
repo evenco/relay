@@ -330,6 +330,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
     state: ContainerState;
     _localVariables: ?Variables;
     _pendingRefetch: ?Disposable;
+    _pendingRefetchType: ?('loadMore' | 'refetch');
     _references: Array<Disposable>;
     _resolver: FragmentSpecResolver;
 
@@ -339,6 +340,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
       const {createFragmentSpecResolver} = relay.environment.unstable_internal;
       this._localVariables = null;
       this._pendingRefetch = null;
+      this._pendingRefetchType = null;
       this._references = [];
       this._resolver = createFragmentSpecResolver(
         relay,
@@ -425,6 +427,8 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
       return {
         hasMore: this._hasMore,
         isLoading: this._isLoading,
+        isLoadingMore: this._isLoadingMore,
+        isReloading: this._isReloading,
         loadMore: this._loadMore,
         refetchConnection: this._refetchConnection,
         environment: relay.environment,
@@ -521,6 +525,14 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
       return !!this._pendingRefetch;
     };
 
+    _isLoadingMore = (): boolean => {
+      return this._pendingRefetch && this._pendingRefetchType == 'loadMore';
+    };
+
+    _isReloading = (): boolean => {
+      return this._pendingRefetch && this._pendingRefetchType == 'refetch';
+    };
+
     _refetchConnection = (
       totalCount: number,
       variables?: ?Variables,
@@ -578,20 +590,27 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         getOperation,
         getVariablesFromObject,
       } = environment.unstable_internal;
-      const props = {
-        ...this.props,
-        ...this.state.data,
-      };
-      const fragmentVariables = {...getVariablesFromObject(
-        this.context.relay.variables,
-        fragments,
-        this.props,
-      ), ...variables};
+
+      const fragmentVariables = {
+        ...getVariablesFromObject(
+          this.context.relay.variables,
+          fragments,
+          this.props,
+        ),
+        ...this._localVariables,
+        ...variables,
+      }
+
       const getVariables =
         connectionConfig.getVariables ||
         createGetVariables(metadata);
       const fetchVariables = getVariables(
-        {...props, ...variables},
+        {
+          ...this.props,
+          ...this._localVariables,
+          ...variables,
+          ...this.state.data,
+        },
         {
           count: paginatingVariables.count,
           cursor: paginatingVariables.cursor,
@@ -606,6 +625,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         fetchVariables,
         componentName,
       );
+
       this._localVariables = fetchVariables;
 
       const cacheConfig = options ? {force: !!options.force} : undefined;
@@ -614,11 +634,13 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
 
       const onCompleted = () => {
         this._pendingRefetch = null;
+        this._pendingRefetchType = null;
         callback && callback();
         this._updateSnapshots(paginatingVariables.totalCount, fragmentVariables);
       };
       const onError = error => {
         this._pendingRefetch = null;
+        this._pendingRefetchType = null;
         callback && callback(error);
       };
 
@@ -637,6 +659,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
         operation,
       });
       this._pendingRefetch = pendingRefetch;
+      this._pendingRefetchType = variables ? 'refetch' : 'loadMore';
 
       // for loading state, updated variables
       this.setState({relayProp: this._buildRelayProp(context.relay)});
@@ -649,6 +672,7 @@ function createContainerWithFragments<TBase: ReactClass<*>>(
           pendingRefetch.dispose();
           if (this._pendingRefetch === pendingRefetch) {
             this._pendingRefetch = null;
+            this._pendingRefetchType = null;
           }
         },
       };
