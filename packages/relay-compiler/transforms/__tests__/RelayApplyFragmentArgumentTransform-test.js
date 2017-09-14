@@ -7,22 +7,22 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
-jest.disableAutomock();
-
-const RelayCompilerContext = require('RelayCompilerContext');
 const RelayApplyFragmentArgumentTransform = require('RelayApplyFragmentArgumentTransform');
+const RelayCompilerContext = require('RelayCompilerContext');
 const RelayParser = require('RelayParser');
 const RelayPrinter = require('RelayPrinter');
 const RelayTestSchema = require('RelayTestSchema');
+
 const getGoldenMatchers = require('getGoldenMatchers');
 
 describe('RelayApplyFragmentArgumentTransform', () => {
   beforeEach(() => {
-    jasmine.addMatchers(getGoldenMatchers(__filename));
+    expect.extend(getGoldenMatchers(__filename));
   });
 
   it('matches expected output', () => {

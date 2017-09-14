@@ -12,6 +12,8 @@
 
 'use strict';
 
+jest.enableAutomock();
+
 require('configureForRelayOSS');
 
 jest.unmock('RelayRenderer');
@@ -19,7 +21,7 @@ jest.unmock('RelayRenderer');
 const React = require('React');
 const ReactDOM = require('ReactDOM');
 const ReactTestUtils = require('ReactTestUtils');
-const Relay = require('Relay');
+const RelayClassic = require('RelayClassic');
 const RelayEnvironment = require('RelayEnvironment');
 const RelayQueryConfig = require('RelayQueryConfig');
 const RelayRenderer = require('RelayRenderer');
@@ -47,8 +49,12 @@ describe('RelayRenderer.render', () => {
   beforeEach(() => {
     jest.resetModules();
 
-    const MockComponent = React.createClass({render: () => <div />});
-    MockContainer = Relay.createContainer(MockComponent, {
+    class MockComponent extends React.Component {
+      render() {
+        return <div />;
+      }
+    }
+    MockContainer = RelayClassic.createContainer(MockComponent, {
       fragments: {},
     });
 
@@ -56,23 +62,15 @@ describe('RelayRenderer.render', () => {
     queryConfig = RelayQueryConfig.genMockInstance();
     environment = new RelayEnvironment();
 
-    jasmine.addMatchers({
-      toBeUpdated() {
+    expect.extend({
+      toBeUpdated(actual) {
         return {
-          compare(actual) {
-            return {
-              pass: actual.props.shouldUpdate,
-            };
-          },
+          pass: actual.props.shouldUpdate,
         };
       },
-      toBeRenderedChild() {
+      toBeRenderedChild(actual) {
         return {
-          compare(actual) {
-            return {
-              pass: getRenderOutput().props.children === actual,
-            };
-          },
+          pass: getRenderOutput().props.children === actual,
         };
       },
     });

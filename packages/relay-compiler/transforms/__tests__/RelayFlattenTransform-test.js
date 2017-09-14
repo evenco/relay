@@ -7,17 +7,17 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
-
-jest.disableAutomock();
 
 import type {FlattenOptions} from 'RelayFlattenTransform';
 
 describe('RelayFlattenTransform', () => {
   let RelayCompilerContext;
   let RelayFlattenTransform;
+  let RelayRelayDirectiveTransform;
   let RelayParser;
   let RelayPrinter;
   let RelayTestSchema;
@@ -28,20 +28,24 @@ describe('RelayFlattenTransform', () => {
 
     RelayCompilerContext = require('RelayCompilerContext');
     RelayFlattenTransform = require('RelayFlattenTransform');
+    RelayRelayDirectiveTransform = require('RelayRelayDirectiveTransform');
     RelayParser = require('RelayParser');
     RelayPrinter = require('RelayPrinter');
     RelayTestSchema = require('RelayTestSchema');
     getGoldenMatchers = require('getGoldenMatchers');
-
-    jasmine.addMatchers(getGoldenMatchers(__filename));
+    expect.extend(getGoldenMatchers(__filename));
   });
 
   function printContextTransform(
     options: FlattenOptions,
   ): (text: string) => string {
     return text => {
+      const {transformASTSchema} = require('ASTConvert');
+      const extendedSchema = transformASTSchema(RelayTestSchema, [
+        RelayRelayDirectiveTransform.SCHEMA_EXTENSION,
+      ]);
       const context = new RelayCompilerContext(RelayTestSchema).addAll(
-        RelayParser.parse(RelayTestSchema, text),
+        RelayParser.parse(extendedSchema, text),
       );
       const nextContext = RelayFlattenTransform.transform(context, options);
       return nextContext

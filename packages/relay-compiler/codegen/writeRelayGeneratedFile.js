@@ -30,6 +30,7 @@ export type FormatModule = ({|
   concreteText: string,
   flowText: ?string,
   hash: ?string,
+  devTextGenerator: (objectName: string) => string,
   relayRuntimeModule: string,
 |}) => string;
 
@@ -45,9 +46,9 @@ async function writeRelayGeneratedFile(
   const moduleName = generatedNode.name + '.graphql';
   const platformName = platform ? moduleName + '.' + platform : moduleName;
   const filename = platformName + '.js';
-  const flowTypeName = generatedNode.kind === 'Batch'
-    ? 'ConcreteBatch'
-    : 'ConcreteFragment';
+  const flowTypeName =
+    generatedNode.kind === 'Batch' ? 'ConcreteBatch' : 'ConcreteFragment';
+  const devOnlyProperties = {};
 
   let text = null;
   let hash = null;
@@ -59,11 +60,16 @@ async function writeRelayGeneratedFile(
     );
     const oldContent = codegenDir.read(filename);
     // Hash the concrete node including the query text.
-    hash = md5(
-      JSON.stringify(generatedNode) +
-        (persistQuery ? 'persisted' : '') +
-        'cache-breaker-4',
-    );
+    const hasher = crypto.createHash('md5');
+    hasher.update('cache-breaker-1');
+    hasher.update(JSON.stringify(generatedNode));
+    if (flowText) {
+      hasher.update(flowText);
+    }
+    if (persistQuery) {
+      hasher.update('persisted');
+    }
+    hash = hasher.digest('hex');
     if (hash === extractHash(oldContent)) {
       codegenDir.markUnchanged(filename);
       return null;
@@ -78,6 +84,8 @@ async function writeRelayGeneratedFile(
         text: null,
         id: await persistQuery(text),
       };
+
+      devOnlyProperties.text = text;
     }
   }
 
@@ -88,11 +96,35 @@ async function writeRelayGeneratedFile(
     flowText,
     hash: hash ? `@relayHash ${hash}` : null,
     concreteText: prettyStringify(generatedNode),
+    devTextGenerator: makeDevTextGenerator(devOnlyProperties),
     relayRuntimeModule,
   });
 
   codegenDir.writeFile(filename, moduleText);
   return generatedNode;
+}
+
+function makeDevTextGenerator(devOnlyProperties: Object) {
+  return objectName => {
+    const assignments = Object.keys(devOnlyProperties).map(key => {
+      const value = devOnlyProperties[key];
+      const stringifiedValue =
+        value === undefined ? 'undefined' : JSON.stringify(value);
+
+      return `  ${objectName}['${key}'] = ${stringifiedValue};`;
+    });
+
+    if (!assignments.length) {
+      return '';
+    }
+
+    return `
+
+if (__DEV__) {
+${assignments.join('\n')}
+}
+`;
+  };
 }
 
 function extractHash(text: ?string): ?string {
@@ -105,10 +137,6 @@ function extractHash(text: ?string): ?string {
   }
   const match = text.match(/@relayHash (\w{32})\b/m);
   return match && match[1];
-}
-
-function md5(text: string): string {
-  return crypto.createHash('md5').update(text).digest('hex');
 }
 
 module.exports = writeRelayGeneratedFile;

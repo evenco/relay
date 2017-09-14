@@ -14,7 +14,9 @@
 'use strict';
 
 import type {DataID} from 'RelayInternalTypes';
-import type {Variables} from 'RelayTypes';
+import type RelayObservable from 'RelayObservable';
+import type {SelectorStoreUpdater} from 'RelayStoreTypes';
+import type {RerunParam, Variables} from 'RelayTypes';
 
 /**
  * Settings for how a query response may be cached.
@@ -23,10 +25,13 @@ import type {Variables} from 'RelayTypes';
  *   state of any configured response cache.
  * - `poll`: causes a query to live update by polling at the specified interval
      in milliseconds. (This value will be passed to setTimeout.)
+ * - `rerunParamExperimental`: causes the query to be run with the experimental
+ *   batch API on Network interfaces and GraphQL servers that support it.
  */
 export type CacheConfig = {
   force?: ?boolean,
   poll?: ?number,
+  rerunParamExperimental?: ?RerunParam,
 };
 
 /**
@@ -51,7 +56,7 @@ export type Record = {[key: string]: mixed};
 /**
  * A collection of records keyed by id.
  */
-export type RecordMap<T> = {[dataID: DataID]: ?T};
+export type RecordMap = {[dataID: DataID]: ?Record};
 
 /**
  * A selector defines the starting point for a traversal into the graph for the
@@ -66,9 +71,9 @@ export type CSelector<TNode> = {
 /**
  * A representation of a selector and its results at a particular point in time.
  */
-export type CSnapshot<TNode, TRecord> = CSelector<TNode> & {
+export type CSnapshot<TNode> = CSelector<TNode> & {
   data: ?SelectorData,
-  seenRecords: RecordMap<TRecord>,
+  seenRecords: RecordMap,
 };
 
 /**
@@ -150,7 +155,7 @@ export interface CEnvironment<
   /**
    * Read the results of a selector from in-memory records in the store.
    */
-  lookup(selector: CSelector<TNode>): CSnapshot<TNode, Record>,
+  lookup(selector: CSelector<TNode>): CSnapshot<TNode>,
 
   /**
    * Subscribe to changes to the results of a selector. The callback is called
@@ -158,8 +163,8 @@ export interface CEnvironment<
    * the snapshot's selector to change.
    */
   subscribe(
-    snapshot: CSnapshot<TNode, Record>,
-    callback: (snapshot: CSnapshot<TNode, Record>) => void,
+    snapshot: CSnapshot<TNode>,
+    callback: (snapshot: CSnapshot<TNode>) => void,
   ): Disposable,
 
   /**
@@ -191,12 +196,7 @@ export interface CEnvironment<
   |}): Disposable,
 
   /**
-   * Send a query to the server with request/subscription semantics: one or more
-   * responses may be returned (via `onNext`) over time followed by either
-   * the request completing (`onCompleted`) or an error (`onError`).
-   *
-   * Networks/servers that support subscriptions may choose to hold the
-   * subscription open indefinitely such that `onCompleted` is not called.
+   * @deprecated Use Environment.observe().subscribe()
    */
   streamQuery(config: {|
     cacheConfig?: ?CacheConfig,
@@ -205,6 +205,23 @@ export interface CEnvironment<
     onNext?: ?(payload: TPayload) => void,
     operation: COperationSelector<TNode, TOperation>,
   |}): Disposable,
+
+  /**
+   * Send a query to the server with Observer semantics: one or more
+   * responses may be returned (via `next`) over time followed by either
+   * the request completing (`completed`) or an error (`error`).
+   *
+   * Networks/servers that support subscriptions may choose to hold the
+   * subscription open indefinitely such that `complete` is not called.
+   *
+   * Note: Observables are lazy, so calling this method will do nothing until
+   * the result is subscribed to: environment.observe({...}).subscribe({...}).
+   */
+  observe(config: {|
+    operation: COperationSelector<TNode, TOperation>,
+    cacheConfig?: ?CacheConfig,
+    updater?: ?SelectorStoreUpdater,
+  |}): RelayObservable<TPayload>,
 
   unstable_internal: CUnstableEnvironmentCore<
     TEnvironment,
@@ -231,6 +248,7 @@ export interface CUnstableEnvironmentCore<
    */
   createFragmentSpecResolver: (
     context: CRelayContext<TEnvironment>,
+    containerName: string,
     fragments: CFragmentMap<TFragment>,
     props: Props,
     callback: () => void,

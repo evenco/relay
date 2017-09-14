@@ -13,17 +13,16 @@
 
 'use strict';
 
-const GraphQLRelayDirective = require('./GraphQLRelayDirective');
 const RelayTransformError = require('./RelayTransformError');
 
 const find = require('./find');
 const invariant = require('./invariant');
 const util = require('util');
 
+const {GraphQLRelayDirective} = require('./GraphQLRelayDirective');
 const {ID} = require('./RelayQLNodeInterface');
 const {
   GraphQLBoolean,
-  GraphQLDirective,
   GraphQLEnumType,
   GraphQLFloat,
   GraphQLID,
@@ -41,12 +40,6 @@ const {
   TypeMetaFieldDef,
   TypeNameMetaFieldDef,
 } = require('graphql');
-
-/* $FlowFixMe(>=0.47.0) - Flow error noticed when v0.47.0 was deployed. To see
- * the error, delete this comment and run flow */
-const GraphQLRelayDirectiveInstance = new GraphQLDirective(
-  GraphQLRelayDirective,
-);
 
 import type {
   ArgumentNode,
@@ -142,6 +135,7 @@ class RelayQLNode<T: RelayQLNodeType> {
   getDirectives(): Array<RelayQLDirective> {
     // $FlowFixMe
     return (this.ast.directives || [])
+      .filter(directive => directive.name.value !== 'fb_native_field')
       .map(directive => new RelayQLDirective(this.context, directive));
   }
 
@@ -165,8 +159,9 @@ class RelayQLDefinition<T: RelayQLNodeType> extends RelayQLNode<T> {
   }
 }
 
-class RelayQLFragment
-  extends RelayQLDefinition<FragmentDefinitionNode | InlineFragmentNode> {
+class RelayQLFragment extends RelayQLDefinition<
+  FragmentDefinitionNode | InlineFragmentNode,
+> {
   parentType: ?RelayQLType;
 
   constructor(
@@ -364,9 +359,10 @@ class RelayQLDirective {
     this.argTypes = {};
 
     const directiveName = ast.name.value;
-    const schemaDirective = directiveName === GraphQLRelayDirective.name
-      ? GraphQLRelayDirectiveInstance
-      : context.schema.getDirective(directiveName);
+    const schemaDirective =
+      directiveName === GraphQLRelayDirective.name
+        ? GraphQLRelayDirective
+        : context.schema.getDirective(directiveName);
     if (!schemaDirective) {
       throw new RelayTransformError(
         util.format(
@@ -493,8 +489,10 @@ class RelayQLType {
   }
 
   canHaveSubselections(): boolean {
-    return !(this.schemaUnmodifiedType instanceof GraphQLScalarType ||
-      this.schemaUnmodifiedType instanceof GraphQLEnumType);
+    return !(
+      this.schemaUnmodifiedType instanceof GraphQLScalarType ||
+      this.schemaUnmodifiedType instanceof GraphQLEnumType
+    );
   }
 
   getName({modifiers}: {modifiers: boolean}): string {
@@ -783,11 +781,13 @@ class RelayQLArgumentType {
   isCustomScalar(): boolean {
     return (
       this.isScalar() &&
-      !(this.schemaUnmodifiedArgType === GraphQLBoolean ||
+      !(
+        this.schemaUnmodifiedArgType === GraphQLBoolean ||
         this.schemaUnmodifiedArgType === GraphQLFloat ||
         this.schemaUnmodifiedArgType === GraphQLID ||
         this.schemaUnmodifiedArgType === GraphQLInt ||
-        this.schemaUnmodifiedArgType === GraphQLString)
+        this.schemaUnmodifiedArgType === GraphQLString
+      )
     );
   }
 

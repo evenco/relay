@@ -13,8 +13,8 @@
 
 'use strict';
 
+const GraphQLSchemaUtils = require('GraphQLSchemaUtils');
 const RelayCompilerContext = require('RelayCompilerContext');
-const RelaySchemaUtils = require('RelaySchemaUtils');
 
 const {
   assertAbstractType,
@@ -31,7 +31,7 @@ const {
   implementsInterface,
   isAbstractType,
   mayImplement,
-} = RelaySchemaUtils;
+} = GraphQLSchemaUtils;
 
 const TYPENAME_KEY = '__typename';
 const ID = 'id';

@@ -12,12 +12,10 @@
 
 'use strict';
 
-jest.autoMockOff();
-
 const RelayEnvironment = require('RelayEnvironment');
-const RelayModernEnvironment = require('RelayModernEnvironment');
 const RelayInMemoryRecordSource = require('RelayInMemoryRecordSource');
 const RelayMarkSweepStore = require('RelayMarkSweepStore');
+const RelayModernEnvironment = require('RelayModernEnvironment');
 
 const isRelayModernEnvironment = require('isRelayModernEnvironment');
 

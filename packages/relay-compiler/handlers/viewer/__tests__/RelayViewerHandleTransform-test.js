@@ -7,11 +7,10 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
-
-jest.disableAutomock();
 
 describe('RelayViewerHandleTransform', () => {
   let RelayCompilerContext;
@@ -20,6 +19,8 @@ describe('RelayViewerHandleTransform', () => {
   let RelayTestSchema;
   let getGoldenMatchers;
   let parseGraphQLText;
+  let buildASTSchema;
+  let parse;
 
   beforeEach(() => {
     jest.resetModules();
@@ -30,8 +31,9 @@ describe('RelayViewerHandleTransform', () => {
     RelayTestSchema = require('RelayTestSchema');
     getGoldenMatchers = require('getGoldenMatchers');
     parseGraphQLText = require('parseGraphQLText');
+    ({buildASTSchema, parse} = require('graphql'));
 
-    jasmine.addMatchers(getGoldenMatchers(__filename));
+    expect.extend(getGoldenMatchers(__filename));
   });
 
   it('adds a handle to viewer fields', () => {
@@ -47,5 +49,59 @@ describe('RelayViewerHandleTransform', () => {
       });
       return documents.join('\n');
     });
+  });
+
+  it('ignores schemas where viewer is not an object', () => {
+    const schema = buildASTSchema(
+      parse(`
+      type Query {
+        viewer: Viewer
+      }
+      scalar Viewer
+    `),
+    );
+    const text = `
+      query TestQuery {
+        viewer
+      }
+    `;
+    const {definitions} = parseGraphQLText(schema, text);
+    let context = new RelayCompilerContext(schema).addAll(definitions);
+    context = RelayViewerHandleTransform.transform(context, schema);
+    const TestQuery = context.getRoot('TestQuery');
+    const viewer = TestQuery.selections[0];
+    expect(viewer.name).toBe('viewer');
+    expect(viewer.kind).toBe('ScalarField');
+    // No handle is added
+    expect(viewer.handles).toBe(undefined);
+  });
+
+  it('ignores schemas where viewer has an id', () => {
+    const schema = buildASTSchema(
+      parse(`
+      type Query {
+        viewer: Viewer
+      }
+      type Viewer {
+        id: ID!
+      }
+    `),
+    );
+    const text = `
+      query TestQuery {
+        viewer {
+          id
+        }
+      }
+    `;
+    const {definitions} = parseGraphQLText(schema, text);
+    let context = new RelayCompilerContext(schema).addAll(definitions);
+    context = RelayViewerHandleTransform.transform(context, schema);
+    const TestQuery = context.getRoot('TestQuery');
+    const viewer = TestQuery.selections[0];
+    expect(viewer.name).toBe('viewer');
+    expect(viewer.kind).toBe('LinkedField');
+    // No handle is added
+    expect(viewer.handles).toBe(undefined);
   });
 });

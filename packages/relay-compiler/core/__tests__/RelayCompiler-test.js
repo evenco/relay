@@ -7,15 +7,15 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
-jest.autoMockOff();
-
 require('configureForRelayOSS');
 
 const {transformASTSchema} = require('ASTConvert');
+const {generate} = require('RelayCodeGenerator');
 const RelayCompiler = require('RelayCompiler');
 const RelayCompilerContext = require('RelayCompilerContext');
 const RelayIRTransforms = require('RelayIRTransforms');
@@ -27,7 +27,7 @@ const prettyStringify = require('prettyStringify');
 
 describe('RelayCompiler', () => {
   beforeEach(() => {
-    jasmine.addMatchers(getGoldenMatchers(__filename));
+    expect.extend(getGoldenMatchers(__filename));
   });
 
   it('matches expected output', () => {
@@ -40,6 +40,7 @@ describe('RelayCompiler', () => {
         RelayTestSchema,
         new RelayCompilerContext(relaySchema),
         RelayIRTransforms,
+        generate,
       );
       compiler.addDefinitions(parseGraphQLText(relaySchema, text).definitions);
       return Array.from(compiler.compile().values())

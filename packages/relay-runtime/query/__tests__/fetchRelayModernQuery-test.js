@@ -7,15 +7,16 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
-jest.autoMockOff();
+const RelayModernTestUtils = require('RelayModernTestUtils');
 
 const fetchRelayModernQuery = require('fetchRelayModernQuery');
+
 const {createMockEnvironment} = require('RelayModernMockEnvironment');
-const RelayModernTestUtils = require('RelayModernTestUtils');
 const {createOperationSelector} = require('RelayModernOperationSelector');
 
 describe('fetchRelayModernQuery', () => {

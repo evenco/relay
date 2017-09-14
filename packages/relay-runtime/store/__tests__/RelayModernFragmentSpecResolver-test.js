@@ -7,17 +7,17 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
-jest.autoMockOff();
-
 const RelayModernFragmentSpecResolver = require('RelayModernFragmentSpecResolver');
+const RelayModernTestUtils = require('RelayModernTestUtils');
+
 const {createMockEnvironment} = require('RelayModernMockEnvironment');
 const {createOperationSelector} = require('RelayModernOperationSelector');
 const {ROOT_ID} = require('RelayStoreUtils');
-const RelayModernTestUtils = require('RelayModernTestUtils');
 
 describe('RelayModernFragmentSpecResolver', () => {
   let UserFragment;
@@ -30,26 +30,30 @@ describe('RelayModernFragmentSpecResolver', () => {
   let variables;
 
   function setName(id, name) {
-    environment.applyUpdate(store => {
-      const user = store.get(id);
-      user.setValue(name, 'name');
+    environment.applyUpdate({
+      storeUpdater: store => {
+        const user = store.get(id);
+        user.setValue(name, 'name');
+      },
     });
   }
 
   function setPhotoUri(id, size, uri) {
-    environment.applyUpdate(store => {
-      const user = store.get(id);
-      const profilePicture = user.getOrCreateLinkedRecord(
-        'profilePicture',
-        'Image',
-        {size},
-      );
-      profilePicture.setValue(uri, 'uri');
+    environment.applyUpdate({
+      storeUpdater: store => {
+        const user = store.get(id);
+        const profilePicture = user.getOrCreateLinkedRecord(
+          'profilePicture',
+          'Image',
+          {size},
+        );
+        profilePicture.setValue(uri, 'uri');
+      },
     });
   }
 
   beforeEach(() => {
-    jasmine.addMatchers(RelayModernTestUtils.matchers);
+    expect.extend(RelayModernTestUtils.matchers);
 
     environment = createMockEnvironment();
     ({UserFragment, UserQuery, UsersFragment} = environment.mock.compile(
@@ -461,6 +465,39 @@ describe('RelayModernFragmentSpecResolver', () => {
           {
             id: '4',
             name: 'Mark',
+          },
+        ],
+      });
+    });
+
+    it('resolves fragment data when the item at the end of the array is removed', () => {
+      const resolver = new RelayModernFragmentSpecResolver(
+        context,
+        {user: UsersFragment},
+        {user: [zuck, beast]},
+        jest.fn(),
+      );
+
+      expect(resolver.resolve()).toEqual({
+        user: [
+          {
+            id: '4',
+            name: 'Zuck',
+          },
+          {
+            id: 'beast',
+            name: 'Beast',
+          },
+        ],
+      });
+
+      resolver.setProps({user: [zuck]});
+
+      expect(resolver.resolve()).toEqual({
+        user: [
+          {
+            id: '4',
+            name: 'Zuck',
           },
         ],
       });

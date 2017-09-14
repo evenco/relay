@@ -14,7 +14,7 @@
 
 require('configureForRelayOSS');
 
-const Relay = require('Relay');
+const RelayClassic = require('RelayClassic');
 const RelayQueryConfig = require('RelayQueryConfig');
 const RelayTestUtils = require('RelayTestUtils');
 
@@ -25,21 +25,20 @@ describe('RelayQueryConfig', () => {
     jest.resetModules();
 
     makeConfig = function() {
-      class MockConfig
-        extends RelayQueryConfig<{
-          required: string,
-          optional?: string,
-        }> {}
+      class MockConfig extends RelayQueryConfig<{
+        required: string,
+        optional?: string,
+      }> {}
       MockConfig.routeName = 'MockConfig';
       MockConfig.queries = {
-        required: Component => Relay.QL`
+        required: Component => RelayClassic.QL`
           query {
             node(id:$required) {
               ${Component.getQuery('required')}
             }
           }
         `,
-        optional: Component => Relay.QL`
+        optional: Component => RelayClassic.QL`
           query {
             node(id:$optional) {
               ${Component.getQuery('optional')}
@@ -50,7 +49,7 @@ describe('RelayQueryConfig', () => {
       return MockConfig;
     };
 
-    jasmine.addMatchers(RelayTestUtils.matchers);
+    expect.extend(RelayTestUtils.matchers);
   });
 
   it('can be created using inheritance', () => {

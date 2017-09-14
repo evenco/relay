@@ -7,13 +7,12 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
 require('configureForRelayOSS');
-
-jest.disableAutomock();
 
 describe('RelayConnectionTransform', () => {
   let RelayCompilerContext;
@@ -36,7 +35,7 @@ describe('RelayConnectionTransform', () => {
 
     ({transformASTSchema} = require('ASTConvert'));
 
-    jasmine.addMatchers(getGoldenMatchers(__filename));
+    expect.extend(getGoldenMatchers(__filename));
   });
 
   function transformerWithOptions(options) {
@@ -66,18 +65,6 @@ describe('RelayConnectionTransform', () => {
   }
 
   it('transforms @connection fields', () => {
-    expect('fixtures/connection-transform').toMatchGolden(
-      transformerWithOptions(),
-    );
-  });
-
-  it('transforms @connection fields with requisite fields', () => {
-    expect(
-      'fixtures/connection-transform-generate-requisite-fields',
-    ).toMatchGolden(
-      transformerWithOptions({
-        generateRequisiteFields: true,
-      }),
-    );
+    expect('fixtures').toMatchGolden(transformerWithOptions());
   });
 });

@@ -14,13 +14,13 @@
 'use strict';
 
 const RelayInMemoryRecordSource = require('RelayInMemoryRecordSource');
-const RelayModernRecord = require('RelayModernRecord');
 const RelayReader = require('RelayReader');
 const RelayRecordSourceMutator = require('RelayRecordSourceMutator');
 const RelayRecordSourceProxy = require('RelayRecordSourceProxy');
 const RelayRecordSourceSelectorProxy = require('RelayRecordSourceSelectorProxy');
 
 const invariant = require('invariant');
+const normalizeRelayPayload = require('normalizeRelayPayload');
 
 import type {SelectorData} from 'RelayCombinedEnvironmentTypes';
 import type {HandlerProvider} from 'RelayDefaultHandlerProvider';
@@ -29,9 +29,11 @@ import type {
   HandleFieldPayload,
   MutableRecordSource,
   OperationSelector,
+  OptimisticUpdate,
   SelectorStoreUpdater,
   Store,
   StoreUpdater,
+  RecordSource,
 } from 'RelayStoreTypes';
 
 type Payload = {
@@ -41,15 +43,15 @@ type Payload = {
   updater: ?SelectorStoreUpdater,
 };
 
-type OptimisticUpdate =
-  | {|
-      storeUpdater: StoreUpdater,
-    |}
-  | {|
-      selectorStoreUpdater: ?SelectorStoreUpdater,
-      operation: OperationSelector,
-      response: ?Object,
-    |};
+type DataToCommit =
+  | {
+      kind: 'payload',
+      payload: Payload,
+    }
+  | {
+      kind: 'source',
+      source: RecordSource,
+    };
 
 /**
  * Coordinates the concurrent modification of a `Store` due to optimistic and
@@ -72,8 +74,8 @@ class RelayPublishQueue {
   // True if the next `run()` should apply the backup and rerun all optimistic
   // updates performing a rebase.
   _pendingBackupRebase: boolean;
-  // Payloads to apply with the next `run()`.
-  _pendingPayloads: Set<Payload>;
+  // Payloads to apply or Sources to publish to the store with the next `run()`.
+  _pendingData: Set<DataToCommit>;
   // Updaters to apply with the next `run()`. These mutate the store and should
   // typically only mutate client schema extensions.
   _pendingUpdaters: Set<StoreUpdater>;
@@ -87,8 +89,8 @@ class RelayPublishQueue {
     this._backup = new RelayInMemoryRecordSource();
     this._handlerProvider = handlerProvider || null;
     this._pendingBackupRebase = false;
-    this._pendingPayloads = new Set();
     this._pendingUpdaters = new Set();
+    this._pendingData = new Set();
     this._pendingOptimisticUpdates = new Set();
     this._store = store;
     this._appliedOptimisticUpdates = new Set();
@@ -138,7 +140,10 @@ class RelayPublishQueue {
     updater?: ?SelectorStoreUpdater,
   ): void {
     this._pendingBackupRebase = true;
-    this._pendingPayloads.add({fieldPayloads, operation, source, updater});
+    this._pendingData.add({
+      kind: 'payload',
+      payload: {fieldPayloads, operation, source, updater},
+    });
   }
 
   /**
@@ -151,6 +156,16 @@ class RelayPublishQueue {
   }
 
   /**
+   * Schedule a publish to the store from the provided source on the next
+   * `run()`. As an example, to update the store with substituted fields that
+   * are missing in the store.
+   */
+  commitSource(source: RecordSource): void {
+    this._pendingBackupRebase = true;
+    this._pendingData.add({kind: 'source', source});
+  }
+
+  /**
    * Execute all queued up operations from the other public methods.
    */
   run(): void {
@@ -158,52 +173,58 @@ class RelayPublishQueue {
       this._store.publish(this._backup);
       this._backup = new RelayInMemoryRecordSource();
     }
-    this._commitPayloads();
+    this._commitData();
     this._commitUpdaters();
     this._applyUpdates();
     this._pendingBackupRebase = false;
     this._store.notify();
   }
 
-  _commitPayloads(): void {
-    if (!this._pendingPayloads.size) {
+  _getSourceFromPayload(payload: Payload): RecordSource {
+    const {fieldPayloads, operation, source, updater} = payload;
+    const mutator = new RelayRecordSourceMutator(
+      this._store.getSource(),
+      source,
+    );
+    const store = new RelayRecordSourceProxy(mutator);
+    const selectorStore = new RelayRecordSourceSelectorProxy(
+      store,
+      operation.fragment,
+    );
+    if (fieldPayloads && fieldPayloads.length) {
+      fieldPayloads.forEach(fieldPayload => {
+        const handler =
+          this._handlerProvider && this._handlerProvider(fieldPayload.handle);
+        invariant(
+          handler,
+          'RelayModernEnvironment: Expected a handler to be provided for ' +
+            'handle `%s`.',
+          fieldPayload.handle,
+        );
+        handler.update(store, fieldPayload);
+      });
+    }
+    if (updater) {
+      const selectorData = lookupSelector(source, operation.fragment);
+      updater(selectorStore, selectorData);
+    }
+    return source;
+  }
+
+  _commitData(): void {
+    if (!this._pendingData.size) {
       return;
     }
-    this._pendingPayloads.forEach(
-      ({fieldPayloads, operation, source, updater}) => {
-        const mutator = new RelayRecordSourceMutator(
-          this._store.getSource(),
-          source,
-        );
-        const store = new RelayRecordSourceProxy(mutator);
-        const selectorStore = new RelayRecordSourceSelectorProxy(
-          store,
-          operation.fragment,
-        );
-        if (fieldPayloads && fieldPayloads.length) {
-          fieldPayloads.forEach(fieldPayload => {
-            const handler =
-              this._handlerProvider &&
-              this._handlerProvider(fieldPayload.handle);
-            invariant(
-              handler,
-              'RelayModernEnvironment: Expected a handler to be provided for ' +
-                'handle `%s`.',
-              fieldPayload.handle,
-            );
-            handler.update(store, fieldPayload);
-          });
-        }
-        if (updater) {
-          const selectorData = lookupSelector(source, operation.fragment);
-          updater(selectorStore, selectorData);
-        }
-        // Publish the server data first so that it is reflected in the mutation
-        // backup created during the rebase
-        this._store.publish(source);
-      },
-    );
-    this._pendingPayloads.clear();
+    this._pendingData.forEach(data => {
+      let source;
+      if (data.kind === 'payload') {
+        source = this._getSourceFromPayload(data.payload);
+      } else {
+        source = data.source;
+      }
+      this._store.publish(source);
+    });
+    this._pendingData.clear();
   }
 
   _commitUpdaters(): void {
@@ -246,7 +267,14 @@ class RelayPublishQueue {
               response,
             } = optimisticUpdate;
             const selectorStore = store.commitPayload(operation, response);
-            selectorStoreUpdater && selectorStoreUpdater(selectorStore);
+            // TODO: Fix commitPayload so we don't have to run normalize twice
+            let selectorData, source;
+            if (response) {
+              ({source} = normalizeRelayPayload(operation.root, response));
+              selectorData = lookupSelector(source, operation.fragment);
+            }
+            selectorStoreUpdater &&
+              selectorStoreUpdater(selectorStore, selectorData);
           } else {
             const {storeUpdater} = optimisticUpdate;
             storeUpdater(store);
@@ -264,7 +292,14 @@ class RelayPublishQueue {
               response,
             } = optimisticUpdate;
             const selectorStore = store.commitPayload(operation, response);
-            selectorStoreUpdater && selectorStoreUpdater(selectorStore);
+            // TODO: Fix commitPayload so we don't have to run normalize twice
+            let selectorData, source;
+            if (response) {
+              ({source} = normalizeRelayPayload(operation.root, response));
+              selectorData = lookupSelector(source, operation.fragment);
+            }
+            selectorStoreUpdater &&
+              selectorStoreUpdater(selectorStore, selectorData);
           } else {
             const {storeUpdater} = optimisticUpdate;
             storeUpdater(store);
@@ -280,8 +315,7 @@ class RelayPublishQueue {
 }
 
 function lookupSelector(source, selector): ?SelectorData {
-  const selectorData = RelayReader.read(source, selector, RelayModernRecord)
-    .data;
+  const selectorData = RelayReader.read(source, selector).data;
   if (__DEV__) {
     const deepFreeze = require('deepFreeze');
     if (selectorData) {

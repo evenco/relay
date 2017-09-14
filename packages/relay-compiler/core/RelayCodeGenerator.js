@@ -13,13 +13,14 @@
 
 'use strict';
 
-const GraphQL = require('graphql');
+const GraphQLSchemaUtils = require('GraphQLSchemaUtils');
 const RelayIRVisitor = require('RelayIRVisitor');
-const RelaySchemaUtils = require('RelaySchemaUtils');
 
 const formatStorageKey = require('formatStorageKey');
 const invariant = require('invariant');
 const prettyStringify = require('prettyStringify');
+
+const {GraphQLList} = require('graphql');
 
 import type {
   ConcreteArgument,
@@ -28,14 +29,16 @@ import type {
   ConcreteRoot,
   ConcreteSelection,
 } from 'RelayConcreteNode';
+import type {GeneratedNode} from 'RelayConcreteNode';
 import type {Fragment, Root} from 'RelayIR';
-
-const {GraphQLList} = GraphQL;
-const {getRawType, isAbstractType, getNullableType} = RelaySchemaUtils;
+const {getRawType, isAbstractType, getNullableType} = GraphQLSchemaUtils;
 
 /* eslint-disable no-redeclare */
 declare function generate(node: Root): ConcreteRoot;
 declare function generate(node: Fragment): ConcreteFragment;
+
+export type CompiledDocumentMap = Map<string, GeneratedNode>;
+export type RelayGeneratedNode = ConcreteRoot | ConcreteFragment;
 
 /**
  * @public
@@ -126,18 +129,20 @@ const RelayCodeGenVisitor = {
     },
 
     LinkedField(node): Array<ConcreteSelection> {
-      const handles = (node.handles &&
-        node.handles.map(handle => {
-          return {
-            kind: 'LinkedHandle',
-            alias: node.alias,
-            args: valuesOrNull(sortByName(node.args)),
-            handle: handle.name,
-            name: node.name,
-            key: handle.key,
-            filters: handle.filters,
-          };
-        })) || [];
+      const handles =
+        (node.handles &&
+          node.handles.map(handle => {
+            return {
+              kind: 'LinkedHandle',
+              alias: node.alias,
+              args: valuesOrNull(sortByName(node.args)),
+              handle: handle.name,
+              name: node.name,
+              key: handle.key,
+              filters: handle.filters,
+            };
+          })) ||
+        [];
       const type = getRawType(node.type);
       return [
         {
@@ -155,18 +160,20 @@ const RelayCodeGenVisitor = {
     },
 
     ScalarField(node): Array<ConcreteSelection> {
-      const handles = (node.handles &&
-        node.handles.map(handle => {
-          return {
-            kind: 'ScalarHandle',
-            alias: node.alias,
-            args: valuesOrNull(sortByName(node.args)),
-            handle: handle.name,
-            name: node.name,
-            key: handle.key,
-            filters: handle.filters,
-          };
-        })) || [];
+      const handles =
+        (node.handles &&
+          node.handles.map(handle => {
+            return {
+              kind: 'ScalarHandle',
+              alias: node.alias,
+              args: valuesOrNull(sortByName(node.args)),
+              handle: handle.name,
+              name: node.name,
+              key: handle.key,
+              filters: handle.filters,
+            };
+          })) ||
+        [];
       return [
         {
           kind: 'ScalarField',

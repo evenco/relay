@@ -102,6 +102,7 @@ class RelayNetworkLayer {
   }
 
   sendQueries(queryRequests: Array<RelayQueryRequest>): void {
+    profileQueue(queryRequests);
     const implementation = this._getImplementation();
     this._subscribers.forEach(({queryCallback}) => {
       if (queryCallback) {
@@ -145,7 +146,6 @@ class RelayNetworkLayer {
       this._queue = currentQueue;
       resolveImmediate(() => {
         this._queue = null;
-        profileQueue(currentQueue);
         this.sendQueries(currentQueue);
       });
     }
@@ -173,10 +173,6 @@ function profileQueue(currentQueue: Array<RelayQueryRequest>): void {
         firstResultProfiler = null;
       }
     };
-    /* $FlowFixMe(site=react_native_fb) - Flow now prevents you from calling a
-     * function with more arguments than it expects. This comment suppresses an
-     * error that was noticed when we made this change. Delete this comment to
-     * see the error. */
     query.done(onSettle, onSettle);
   });
 }

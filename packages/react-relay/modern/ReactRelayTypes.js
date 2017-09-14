@@ -16,7 +16,7 @@
 import type {Disposable} from 'RelayCombinedEnvironmentTypes';
 import type {GraphQLTaggedNode} from 'RelayModernGraphQLTag';
 import type {Environment} from 'RelayStoreTypes';
-import type {Variables} from 'RelayTypes';
+import type {RerunParam, Variables} from 'RelayTypes';
 
 export type GeneratedNodeMap = {[key: string]: GraphQLTaggedNode};
 
@@ -36,6 +36,7 @@ export type RelayPaginationProp = RelayProp & {
     Variables: ?Variables,
     totalCount: number,
     callback: (error: ?Error) => void,
+    refetchVariables: ?Variables,
   ) => ?Disposable,
 };
 
@@ -50,4 +51,5 @@ export type RelayRefetchProp = RelayProp & {
 
 export type RefetchOptions = {
   force?: boolean,
+  rerunParamExperimental?: RerunParam,
 };

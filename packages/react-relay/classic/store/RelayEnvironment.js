@@ -20,7 +20,6 @@ const RelayMetaRoute = require('RelayMetaRoute');
 const RelayQuery = require('RelayQuery');
 const RelayQueryPath = require('RelayQueryPath');
 const RelayQueryRequest = require('RelayQueryRequest');
-const RelayQueryResultObservable = require('RelayQueryResultObservable');
 const RelayStoreData = require('RelayStoreData');
 const RelayVariables = require('RelayVariables');
 
@@ -31,6 +30,8 @@ const readRelayQueryData = require('readRelayQueryData');
 const recycleNodesInto = require('recycleNodesInto');
 const relayUnstableBatchedUpdates = require('relayUnstableBatchedUpdates');
 const warning = require('warning');
+
+const {Observable} = require('RelayRuntime');
 
 import type {ConcreteOperationDefinition} from 'ConcreteQuery';
 import type {CacheConfig, Disposable} from 'RelayCombinedEnvironmentTypes';
@@ -47,13 +48,13 @@ import type RelayMutationTransaction from 'RelayMutationTransaction';
 import type {MutationCallback, QueryCallback} from 'RelayNetworkLayer';
 import type {UploadableMap} from 'RelayNetworkTypes';
 import type RelayQueryTracker from 'RelayQueryTracker';
+import type {SelectorStoreUpdater} from 'RelayStoreTypes';
 import type {TaskScheduler} from 'RelayTaskQueue';
 import type {
   Abortable,
   CacheManager,
   ChangeSubscription,
   NetworkLayer,
-  Observable,
   RelayMutationConfig,
   RelayMutationTransactionCommitCallbacks,
   ReadyStateChangeCallback,
@@ -210,7 +211,7 @@ class RelayEnvironment implements Environment, RelayEnvironmentInterface {
     return snapshot;
   }
 
-  sendMutation({
+  sendMutation<ResponseType>({
     configs,
     onCompleted,
     onError,
@@ -221,7 +222,7 @@ class RelayEnvironment implements Environment, RelayEnvironmentInterface {
     uploadables,
   }: {
     configs: Array<RelayMutationConfig>,
-    onCompleted?: ?(response: {[key: string]: Object}) => void,
+    onCompleted?: ?(response: ResponseType) => void,
     onError?: ?(error: Error) => void,
     operation: ConcreteOperationDefinition,
     optimisticOperation?: ?ConcreteOperationDefinition,
@@ -240,7 +241,7 @@ class RelayEnvironment implements Environment, RelayEnvironmentInterface {
           if (disposed) {
             return;
           }
-          onCompleted && onCompleted(response);
+          onCompleted && onCompleted((response: $FlowFixMe));
         },
         onFailure: transaction => {
           if (disposed) {
@@ -250,7 +251,8 @@ class RelayEnvironment implements Environment, RelayEnvironmentInterface {
             let error = transaction.getError();
             if (!error) {
               error = new Error(
-                `RelayEnvironment: Unknown error executing mutation ${operation.node.name}`,
+                `RelayEnvironment: Unknown error executing mutation ${operation
+                  .node.name}`,
               );
             }
             onError(error);
@@ -353,9 +355,8 @@ class RelayEnvironment implements Environment, RelayEnvironmentInterface {
         if (isDisposed) {
           return;
         }
-        const forceIndex = cacheConfig && cacheConfig.force
-          ? generateForceIndex()
-          : null;
+        const forceIndex =
+          cacheConfig && cacheConfig.force ? generateForceIndex() : null;
         this._storeData.handleOSSQueryPayload(
           query,
           payload.response,
@@ -386,6 +387,20 @@ class RelayEnvironment implements Environment, RelayEnvironmentInterface {
     operation: OperationSelector,
   }): Disposable {
     return this.sendQuery(config);
+  }
+
+  observe({
+    operation,
+    cacheConfig,
+    updater,
+  }: {
+    operation: OperationSelector,
+    cacheConfig?: ?CacheConfig,
+    updater?: ?SelectorStoreUpdater,
+  }): Observable<Selector> {
+    return Observable.fromLegacy(observer =>
+      this.streamQuery({operation, cacheConfig, ...observer}),
+    );
   }
 
   applyUpdate: (
@@ -517,17 +532,6 @@ class RelayEnvironment implements Environment, RelayEnvironmentInterface {
       results.push(data);
     });
     return results;
-  }
-
-  /**
-   * Reads and subscribes to query data anchored at the supplied data ID. The
-   * returned observable emits updates as the data changes over time.
-   */
-  observe(
-    fragment: RelayQuery.Fragment,
-    dataID: DataID,
-  ): Observable<?StoreReaderData> {
-    return new RelayQueryResultObservable(this._storeData, fragment, dataID);
   }
 
   /**

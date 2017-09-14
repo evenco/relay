@@ -16,14 +16,16 @@
 const RelayCompilerContext = require('RelayCompilerContext');
 const RelayIRTransformer = require('RelayIRTransformer');
 
+const {getRawType} = require('GraphQLSchemaUtils');
 const {DEFAULT_HANDLE_KEY} = require('RelayDefaultHandleKey');
-const {getRawType} = require('RelaySchemaUtils');
+const {GraphQLObjectType} = require('graphql');
 
 import type {LinkedField} from 'RelayIR';
 import type {GraphQLSchema} from 'graphql';
 
 type State = {};
 
+const ID = 'id';
 const VIEWER_HANDLE = 'viewer';
 const VIEWER_TYPE = 'Viewer';
 
@@ -35,7 +37,11 @@ function transform(
   schema: GraphQLSchema,
 ): RelayCompilerContext {
   const viewerType = schema.getType(VIEWER_TYPE);
-  if (viewerType == null) {
+  if (
+    viewerType == null ||
+    !(viewerType instanceof GraphQLObjectType) ||
+    viewerType.getFields()[ID] != null
+  ) {
     return context;
   }
   return RelayIRTransformer.transform(

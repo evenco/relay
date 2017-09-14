@@ -15,6 +15,7 @@
 
 import type {CacheConfig, Disposable} from 'RelayCombinedEnvironmentTypes';
 import type {ConcreteBatch} from 'RelayConcreteNode';
+import type RelayObservable, {ObservableFromValue} from 'RelayObservable';
 import type {
   HandleFieldPayload,
   MutableRecordSource,
@@ -34,11 +35,9 @@ export interface ResponseCache {
  * An interface for fetching the data for one or more (possibly interdependent)
  * queries.
  */
-export interface Network {
-  fetch: FetchFunction,
-  request: RequestResponseFunction,
-  requestStream: RequestStreamFunction,
-}
+export type Network = {|
+  observe: ObserveFunction,
+|};
 
 export type PayloadData = {[key: string]: mixed};
 
@@ -54,66 +53,58 @@ export type PayloadError = {
  * The shape of a GraphQL response as dictated by the
  * [spec](http://facebook.github.io/graphql/#sec-Response)
  */
-export type QueryPayload = {
+export type QueryPayload = {|
   data?: ?PayloadData,
   errors?: Array<PayloadError>,
-};
+  rerunVariables?: Variables,
+|};
+
+/**
+ * A function that returns an Observable representing the response of executing
+ * a GraphQL operation.
+ */
+export type ObserveFunction = (
+  operation: ConcreteBatch,
+  variables: Variables,
+  cacheConfig: CacheConfig,
+  uploadables?: ?UploadableMap,
+) => RelayObservable<QueryPayload>;
 
 /**
  * The shape of data that is returned by the Relay network layer for a given
  * query.
  */
-export type RelayResponsePayload = {
+export type RelayResponsePayload = {|
   fieldPayloads?: ?Array<HandleFieldPayload>,
   source: MutableRecordSource,
   errors: ?Array<PayloadError>,
-};
+|};
 
 /**
- * A function that executes a GraphQL operation with request/response semantics,
- * with exactly one raw server response returned
+ * A function that executes a GraphQL operation with request/response semantics.
+ *
+ * May return an Observable or Promise of a raw server response.
  */
 export type FetchFunction = (
   operation: ConcreteBatch,
   variables: Variables,
-  cacheConfig: ?CacheConfig,
-  uploadables?: UploadableMap,
-) => Promise<QueryPayload>;
+  cacheConfig: CacheConfig,
+  uploadables: ?UploadableMap,
+) => ObservableFromValue<QueryPayload>;
 
 /**
- * A function that executes a GraphQL operation with request/subscription
- * semantics, returning one or more raw server responses over time.
+ * A function that executes a GraphQL subscription operation, returning one or
+ * more raw server responses over time.
+ *
+ * May return an Observable, otherwise must call the callbacks found in the
+ * fourth parameter.
  */
 export type SubscribeFunction = (
   operation: ConcreteBatch,
   variables: Variables,
-  cacheConfig: ?CacheConfig,
+  cacheConfig: CacheConfig,
   observer: Observer<QueryPayload>,
-) => Disposable;
-
-/**
- * A function that executes a GraphQL operation with request/subscription
- * semantics, returning one or more responses over time that include the
- * initial result and optional updates e.g. as the results of the operation
- * change.
- */
-export type RequestStreamFunction = (
-  operation: ConcreteBatch,
-  variables: Variables,
-  cacheConfig: ?CacheConfig,
-  observer: Observer<RelayResponsePayload>,
-) => Disposable;
-
-/**
- * A function that executes a GraphQL operation with request/response semantics,
- * with exactly one response returned.
- */
-export type RequestResponseFunction = (
-  operation: ConcreteBatch,
-  variables: Variables,
-  cacheConfig?: ?CacheConfig,
-  uploadables?: UploadableMap,
-) => Promise<RelayResponsePayload>;
+) => RelayObservable<QueryPayload> | Disposable;
 
 export type Uploadable = File | Blob;
 // $FlowFixMe this is compatible with classic api see D4658012

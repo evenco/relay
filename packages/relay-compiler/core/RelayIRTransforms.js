@@ -13,88 +13,66 @@
 
 'use strict';
 
+const FilterDirectivesTransform = require('FilterDirectivesTransform');
+const GraphQLIRTransforms = require('GraphQLIRTransforms');
 const RelayApplyFragmentArgumentTransform = require('RelayApplyFragmentArgumentTransform');
 const RelayConnectionTransform = require('RelayConnectionTransform');
-const RelayExportTransform = require('RelayExportTransform');
 const RelayFieldHandleTransform = require('RelayFieldHandleTransform');
-const RelayFilterDirectivesTransform = require('RelayFilterDirectivesTransform');
 const RelayFlattenTransform = require('RelayFlattenTransform');
 const RelayGenerateRequisiteFieldsTransform = require('RelayGenerateRequisiteFieldsTransform');
 const RelayRelayDirectiveTransform = require('RelayRelayDirectiveTransform');
-const RelaySkipClientFieldTransform = require('RelaySkipClientFieldTransform');
 const RelaySkipHandleFieldTransform = require('RelaySkipHandleFieldTransform');
-const RelaySkipRedundantNodesTransform = require('RelaySkipRedundantNodesTransform');
-const RelaySkipUnreachableNodeTransform = require('RelaySkipUnreachableNodeTransform');
 const RelayViewerHandleTransform = require('RelayViewerHandleTransform');
 
+import type {IRTransform} from 'GraphQLIRTransforms';
 import type CompilerContext from 'RelayCompilerContext';
-import type {GraphQLSchema} from 'graphql';
 
-export type IRTransform = (
-  context: CompilerContext,
-  schema: GraphQLSchema,
-) => CompilerContext;
+const {
+  codegenTransforms,
+  fragmentTransforms,
+  queryTransforms,
+} = GraphQLIRTransforms;
 
 // Transforms applied to the code used to process a query response.
-const schemaExtensions: Array<string> = [
+const relaySchemaExtensions: Array<string> = [
   RelayConnectionTransform.SCHEMA_EXTENSION,
-  RelayExportTransform.SCHEMA_EXTENSION,
   RelayRelayDirectiveTransform.SCHEMA_EXTENSION,
 ];
 
 // Transforms applied to fragments used for reading data from a store
-const FRAGMENT_TRANSFORMS: Array<IRTransform> = [
+const relayFragmentTransforms: Array<IRTransform> = [
   (ctx: CompilerContext) => RelayConnectionTransform.transform(ctx),
   RelayViewerHandleTransform.transform,
   RelayRelayDirectiveTransform.transform,
   RelayFieldHandleTransform.transform,
-  (ctx: CompilerContext) =>
-    RelayFlattenTransform.transform(ctx, {
-      flattenAbstractTypes: true,
-    }),
-  RelaySkipRedundantNodesTransform.transform,
+  ...fragmentTransforms,
 ];
 
 // Transforms applied to queries/mutations/subscriptions that are used for
 // fetching data from the server and parsing those responses.
-/* $FlowFixMe(>=0.44.0 site=react_native_fb) Flow error found while deploying
- * v0.44.0. Remove this comment to see the error */
-const QUERY_TRANSFORMS: Array<IRTransform> = [
-  (ctx: CompilerContext) =>
-    RelayConnectionTransform.transform(ctx, {
-      generateRequisiteFields: true,
-    }),
+const relayQueryTransforms: Array<IRTransform> = [
+  (ctx: CompilerContext) => RelayConnectionTransform.transform(ctx),
   RelayViewerHandleTransform.transform,
   RelayApplyFragmentArgumentTransform.transform,
-  RelaySkipClientFieldTransform.transform,
-  RelaySkipUnreachableNodeTransform.transform,
-  RelayExportTransform.transform,
+  ...queryTransforms,
   RelayRelayDirectiveTransform.transform,
   RelayGenerateRequisiteFieldsTransform.transform,
 ];
 
 // Transforms applied to the code used to process a query response.
-const CODEGEN_TRANSFORMS: Array<IRTransform> = [
-  RelayFilterDirectivesTransform.transform,
-  (ctx: CompilerContext) =>
-    RelayFlattenTransform.transform(ctx, {
-      flattenAbstractTypes: true,
-      flattenFragmentSpreads: true,
-    }),
-  RelaySkipRedundantNodesTransform.transform,
-];
+const relayCodegenTransforms: Array<IRTransform> = codegenTransforms;
 
 // Transforms applied before printing the query sent to the server.
-const PRINT_TRANSFORMS: Array<IRTransform> = [
-  RelayFilterDirectivesTransform.transform,
+const relayPrintTransforms: Array<IRTransform> = [
   (ctx: CompilerContext) => RelayFlattenTransform.transform(ctx, {}),
   RelaySkipHandleFieldTransform.transform,
+  FilterDirectivesTransform.transform,
 ];
 
 module.exports = {
-  codegenTransforms: CODEGEN_TRANSFORMS,
-  fragmentTransforms: FRAGMENT_TRANSFORMS,
-  printTransforms: PRINT_TRANSFORMS,
-  queryTransforms: QUERY_TRANSFORMS,
-  schemaExtensions,
+  codegenTransforms: relayCodegenTransforms,
+  fragmentTransforms: relayFragmentTransforms,
+  printTransforms: relayPrintTransforms,
+  queryTransforms: relayQueryTransforms,
+  schemaExtensions: relaySchemaExtensions,
 };

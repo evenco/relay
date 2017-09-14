@@ -7,11 +7,12 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
-jest.mock('warning').autoMockOff();
+jest.mock('warning');
 
 const {ROOT_ID} = require('RelayStoreConstants');
 const {
@@ -41,32 +42,32 @@ describe('RelaySelector', () => {
   let variables;
 
   beforeEach(() => {
-    jasmine.addMatchers(RelayTestUtils.matchers);
+    expect.extend(RelayTestUtils.matchers);
 
     environment = new RelayEnvironment();
 
     const fragments = {
       user: getClassicFragment(
         graphql`
-        fragment RelaySelector_user on User {
-          id
-          name
-          profilePicture(size: $size) @include(if: $cond) {
-            uri
+          fragment RelaySelector_user on User {
+            id
+            name
+            profilePicture(size: $size) @include(if: $cond) {
+              uri
+            }
           }
-        }
-      `,
+        `,
       ),
       users: getClassicFragment(
         graphql`
-        fragment RelaySelector_users on User @relay(plural: true) {
-          id
-          name
-          profilePicture(size: $size) @include(if: $cond) {
-            uri
+          fragment RelaySelector_users on User @relay(plural: true) {
+            id
+            name
+            profilePicture(size: $size) @include(if: $cond) {
+              uri
+            }
           }
-        }
-      `,
+        `,
       ),
     };
     // Fake a container: The `...Container_*` fragment spreads below are
@@ -84,13 +85,13 @@ describe('RelaySelector', () => {
     };
     UserQuery = getClassicOperation(
       graphql`
-      query RelaySelectorQuery($id: ID!, $size: Int, $cond: Boolean!) {
-        node(id: $id) {
-          ...Container_user
-          ...Container_users
+        query RelaySelectorQuery($id: ID!, $size: Int, $cond: Boolean!) {
+          node(id: $id) {
+            ...Container_user
+            ...Container_users
+          }
         }
-      }
-    `,
+      `,
     );
     UserFragment = fragments.user;
     UsersFragment = fragments.users;

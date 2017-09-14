@@ -7,6 +7,7 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @providesModule createClassicNode
+ * @flow
  * @format
  */
 
@@ -15,13 +16,24 @@
 const GraphQL = require('graphql');
 
 const compileRelayQLTag = require('./compileRelayQLTag');
+const getClassicTransformer = require('./getClassicTransformer');
 const getFragmentNameParts = require('./getFragmentNameParts');
 const invariant = require('./invariant');
+
+import typeof BabelTypes from 'babel-types';
+
+import type {BabelState} from './BabelPluginRelay';
+import type {DefinitionNode} from 'graphql';
 
 /**
  * Relay Classic transforms to inline generated content.
  */
-function createClassicNode(t, path, graphqlDefinition, state) {
+function createClassicNode(
+  t: BabelTypes,
+  path: Object,
+  graphqlDefinition: DefinitionNode,
+  state: BabelState,
+): Object {
   if (graphqlDefinition.kind === 'FragmentDefinition') {
     return createFragmentConcreteNode(t, path, graphqlDefinition, state);
   }
@@ -58,29 +70,34 @@ function createFragmentConcreteNode(t, path, definition, state) {
       argumentDefinitions,
       variables,
     ),
-    node: createRelayQLTemplate(t, classicAST, state),
+    node: createRelayQLTemplate(t, path, classicAST, state),
   });
 
   return createConcreteNode(t, transformedAST, substitutions, state);
 }
 
 function createOperationConcreteNode(t, path, definition, state) {
+  const definitionName = definition.name;
+  if (!definitionName) {
+    throw new Error('GraphQL operations must contain names');
+  }
   const {classicAST, fragments} = createClassicAST(t, definition);
   const substitutions = createSubstitutionsForFragmentSpreads(
     t,
     path,
     fragments,
   );
-  const nodeAST = classicAST.operation === 'query'
-    ? createFragmentForOperation(t, classicAST, state)
-    : createRelayQLTemplate(t, classicAST, state);
+  const nodeAST =
+    classicAST.operation === 'query'
+      ? createFragmentForOperation(t, path, classicAST, state)
+      : createRelayQLTemplate(t, path, classicAST, state);
   const transformedAST = createObject(t, {
     kind: t.stringLiteral('OperationDefinition'),
     argumentDefinitions: createOperationArguments(
       t,
       definition.variableDefinitions,
     ),
-    name: t.stringLiteral(definition.name.value),
+    name: t.stringLiteral(definitionName.value),
     operation: t.stringLiteral(classicAST.operation),
     node: nodeAST,
   });
@@ -120,34 +137,60 @@ function createClassicAST(t, definition) {
       const fragmentName = node.name.value;
       let fragmentArgumentsAST = null;
       let substitutionName = null;
+      let isMasked = true;
 
       if (directives.length === 0) {
         substitutionName = fragmentName;
       } else {
-        // TODO: add support for @include and other directives.
+        // TODO: maybe add support when unmasked fragment has arguments.
         const directive = directives[0];
-        if (directives.length !== 1 || directive.name.value !== 'arguments') {
-          throw new Error(
-            'BabelPluginRelay: Unsupported directive `' +
-              directive.name.value +
-              '` on fragment spread `...' +
-              fragmentName +
-              '`.',
-          );
+        invariant(
+          directives.length === 1,
+          'BabelPluginRelay: Cannot use both `@arguments` and `@relay(mask: false)` on the ' +
+            'same fragment spread when in compat mode.',
+        );
+        switch (directive.name.value) {
+          case 'arguments':
+            const fragmentArgumentsObject = {};
+            directive.arguments.forEach(argNode => {
+              const arg = convertArgument(t, argNode);
+              fragmentArgumentsObject[arg.name] = arg.ast;
+            });
+            fragmentArgumentsAST = createObject(t, fragmentArgumentsObject);
+            fragmentID++;
+            substitutionName = fragmentName + '_args' + fragmentID;
+            break;
+          case 'relay':
+            const relayArguments = directive.arguments;
+            invariant(
+              relayArguments.length === 1 &&
+                relayArguments[0].name.value === 'mask',
+              'BabelPluginRelay: Expected `@relay` directive to only have `mask` argument in ' +
+                'compat mode, but get %s',
+              relayArguments[0].name.value,
+            );
+            substitutionName = fragmentName;
+            isMasked = relayArguments[0].value.value !== false;
+            break;
+          default:
+            throw new Error(
+              'BabelPluginRelay: Unsupported directive `' +
+                directive.name.value +
+                '` on fragment spread `...' +
+                fragmentName +
+                '`.',
+            );
         }
-        const fragmentArgumentsObject = {};
-        directive.arguments.forEach(argNode => {
-          const arg = convertArgument(t, argNode);
-          fragmentArgumentsObject[arg.name] = arg.ast;
-        });
-        fragmentArgumentsAST = createObject(t, fragmentArgumentsObject);
-        fragmentID++;
-        substitutionName = fragmentName + '_args' + fragmentID;
       }
 
+      invariant(
+        substitutionName,
+        'BabelPluginRelay: Expected `substitutionName` to be non-null',
+      );
       fragments[substitutionName] = {
         name: fragmentName,
         args: fragmentArgumentsAST,
+        isMasked,
       };
       return Object.assign({}, node, {
         name: {kind: 'Name', value: substitutionName},
@@ -170,35 +213,24 @@ function createClassicAST(t, definition) {
   };
 }
 
-const RELAYQL_GENERATED = 'RelayQL_GENERATED';
+const RELAY_QL_GENERATED = 'RelayQL_GENERATED';
 
 function createConcreteNode(t, transformedAST, substitutions, state) {
-  // Allow for an optional direct require to RelayQL,
-  // otherwise default to `require('react-relay/classic').QL`.
-  const relayQLModule = state.opts && state.opts.relayQLModule;
-  const relayQLRequire = relayQLModule
-    ? createRequireCall(t, relayQLModule)
-    : t.memberExpression(
-        createRequireCall(t, 'react-relay/classic'),
-        t.identifier('QL'),
-      );
-
+  const body = [t.returnStatement(transformedAST)];
+  if (substitutions.length > 0) {
+    body.unshift(t.variableDeclaration('const', substitutions));
+  }
   return t.functionExpression(
     null,
-    [],
-    t.blockStatement([
-      t.variableDeclaration(
-        'const',
-        [
-          t.variableDeclarator(t.identifier(RELAYQL_GENERATED), relayQLRequire),
-        ].concat(substitutions),
-      ),
-      t.returnStatement(transformedAST),
-    ]),
+    [t.identifier(RELAY_QL_GENERATED)],
+    t.blockStatement(body),
   );
 }
 
 function createOperationArguments(t, variableDefinitions) {
+  if (!variableDefinitions) {
+    return t.arrayExpression([]);
+  }
   return t.arrayExpression(
     variableDefinitions.map(definition => {
       const name = definition.variable.name.value;
@@ -290,23 +322,44 @@ function createObject(t, obj: any) {
   );
 }
 
-function createRequireCall(t, requiredPath) {
-  return t.callExpression(t.identifier('require'), [
-    t.stringLiteral(requiredPath),
-  ]);
+function getSchemaOption(state) {
+  const schema = state.opts && state.opts.schema;
+  invariant(
+    schema,
+    'babel-plugin-relay: Missing schema option. ' +
+      'Check your .babelrc file or wherever you configure your Babel ' +
+      'plugins to ensure the "relay" plugin has a "schema" option.\n' +
+      'https://facebook.github.io/relay/docs/babel-plugin-relay.html#additional-options',
+  );
+  return schema;
 }
 
-function createFragmentForOperation(t, operation, state) {
+function createFragmentForOperation(t, path, operation, state) {
   let type;
+  const schema = getSchemaOption(state);
+  const fileOpts = (state.file && state.file.opts) || {};
+  const transformer = getClassicTransformer(schema, state.opts || {}, fileOpts);
   switch (operation.operation) {
     case 'query':
-      type = 'Query';
+      const queryType = transformer.schema.getQueryType();
+      if (!queryType) {
+        throw new Error('Schema does not contain a root query type.');
+      }
+      type = queryType.name;
       break;
     case 'mutation':
-      type = 'Mutation';
+      const mutationType = transformer.schema.getMutationType();
+      if (!mutationType) {
+        throw new Error('Schema does not contain a root mutation type.');
+      }
+      type = mutationType.name;
       break;
     case 'subscription':
-      type = 'Subscription';
+      const subscriptionType = transformer.schema.getSubscriptionType();
+      if (!subscriptionType) {
+        throw new Error('Schema does not contain a root subscription type.');
+      }
+      type = subscriptionType.name;
       break;
     default:
       throw new Error(
@@ -332,18 +385,11 @@ function createFragmentForOperation(t, operation, state) {
     directives: operation.directives,
     selectionSet: operation.selectionSet,
   };
-  return createRelayQLTemplate(t, fragmentNode, state);
+  return createRelayQLTemplate(t, path, fragmentNode, state);
 }
 
-function createRelayQLTemplate(t, node, state) {
-  const schema = state.opts && state.opts.schema;
-  invariant(
-    schema,
-    'babel-plugin-relay: Missing schema option. ' +
-      'Check your .babelrc file or wherever you configure your Babel ' +
-      'plugins to ensure the "relay" plugin has a "schema" option.\n' +
-      'https://facebook.github.io/relay/docs/babel-plugin-relay.html#additional-options',
-  );
+function createRelayQLTemplate(t, path, node, state) {
+  const schema = getSchemaOption(state);
   const [documentName, propName] = getFragmentNameParts(node.name.value);
   const text = GraphQL.print(node);
   const quasi = t.templateLiteral(
@@ -351,13 +397,19 @@ function createRelayQLTemplate(t, node, state) {
     [],
   );
 
+  // Disable classic validation rules inside of `graphql` tags which are
+  // validated by the RelayCompiler with less strict rules.
+  const enableValidation = false;
+
   return compileRelayQLTag(
     t,
+    path,
     schema,
     quasi,
     documentName,
     propName,
-    RELAYQL_GENERATED, // tagName
+    RELAY_QL_GENERATED,
+    enableValidation,
     state,
   );
 }
@@ -366,10 +418,36 @@ function createSubstitutionsForFragmentSpreads(t, path, fragments) {
   return Object.keys(fragments).map(varName => {
     const fragment = fragments[varName];
     const [module, propName] = getFragmentNameParts(fragment.name);
-    return t.variableDeclarator(
-      t.identifier(varName),
-      createGetFragmentCall(t, path, module, propName, fragment.args),
-    );
+    if (!fragment.isMasked) {
+      invariant(
+        path.scope.hasBinding(module),
+        'BabelPluginRelay: Please make sure module %s is imported and not renamed. ' +
+          module,
+      );
+      const fragmentProp = t.memberExpression(
+        t.identifier(module),
+        t.identifier(propName),
+      );
+      return t.variableDeclarator(
+        t.identifier(varName),
+        t.memberExpression(
+          t.callExpression(
+            t.memberExpression(
+              t.identifier(RELAY_QL_GENERATED),
+              t.identifier('__getClassicFragment'),
+            ),
+            [fragmentProp],
+          ),
+          // Hack to extract 'ConcreteFragment' from 'ConcreteFragmentDefinition'
+          t.identifier('node'),
+        ),
+      );
+    } else {
+      return t.variableDeclarator(
+        t.identifier(varName),
+        createGetFragmentCall(t, path, module, propName, fragment.args),
+      );
+    }
   });
 }
 

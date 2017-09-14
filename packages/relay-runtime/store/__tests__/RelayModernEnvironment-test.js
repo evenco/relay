@@ -7,20 +7,21 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
-jest.autoMockOff();
-
 const Deferred = require('Deferred');
-const RelayModernEnvironment = require('RelayModernEnvironment');
 const RelayInMemoryRecordSource = require('RelayInMemoryRecordSource');
 const RelayMarkSweepStore = require('RelayMarkSweepStore');
-const RelayNetwork = require('RelayNetwork');
-const {ROOT_ID} = require('RelayStoreUtils');
+const RelayModernEnvironment = require('RelayModernEnvironment');
 const RelayModernTestUtils = require('RelayModernTestUtils');
+const RelayNetwork = require('RelayNetwork');
+const RelayObservable = require('RelayObservable');
+
 const {createOperationSelector} = require('RelayModernOperationSelector');
+const {ROOT_ID} = require('RelayStoreUtils');
 
 describe('RelayModernEnvironment', () => {
   const {generateAndCompile} = RelayModernTestUtils;
@@ -30,7 +31,7 @@ describe('RelayModernEnvironment', () => {
 
   beforeEach(() => {
     jest.resetModules();
-    jasmine.addMatchers(RelayModernTestUtils.matchers);
+    expect.extend(RelayModernTestUtils.matchers);
     source = new RelayInMemoryRecordSource();
     store = new RelayMarkSweepStore(source);
 
@@ -146,9 +147,11 @@ describe('RelayModernEnvironment', () => {
     let environment;
 
     function setName(id, name) {
-      environment.applyUpdate(store => {
-        const user = store.get(id);
-        user.setValue(name, 'name');
+      environment.applyUpdate({
+        storeUpdater: proxyStore => {
+          const user = proxyStore.get(id);
+          user.setValue(name, 'name');
+        },
       });
     }
 
@@ -310,10 +313,12 @@ describe('RelayModernEnvironment', () => {
       const snapshot = environment.lookup(selector);
       environment.subscribe(snapshot, callback);
 
-      environment.applyUpdate(store => {
-        const zuck = store.create('4', 'User');
-        zuck.setValue('4', 'id');
-        zuck.setValue('zuck', 'name');
+      environment.applyUpdate({
+        storeUpdater: proxyStore => {
+          const zuck = proxyStore.create('4', 'User');
+          zuck.setValue('4', 'id');
+          zuck.setValue('zuck', 'name');
+        },
       });
       expect(callback.mock.calls.length).toBe(1);
       expect(callback.mock.calls[0][0].data).toEqual({
@@ -332,14 +337,51 @@ describe('RelayModernEnvironment', () => {
       const snapshot = environment.lookup(selector);
       environment.subscribe(snapshot, callback);
 
-      const {dispose} = environment.applyUpdate(store => {
-        const zuck = store.create('4', 'User');
-        zuck.setValue('zuck', 'name');
+      const {dispose} = environment.applyUpdate({
+        storeUpdater: proxyStore => {
+          const zuck = proxyStore.create('4', 'User');
+          zuck.setValue('zuck', 'name');
+        },
       });
       callback.mockClear();
       dispose();
       expect(callback.mock.calls.length).toBe(1);
       expect(callback.mock.calls[0][0].data).toEqual(undefined);
+    });
+
+    it('can replace one mutation with another', () => {
+      const selector = {
+        dataID: '4',
+        node: UserFragment,
+        variables: {},
+      };
+      const callback = jest.fn();
+      const snapshot = environment.lookup(selector);
+      environment.subscribe(snapshot, callback);
+
+      callback.mockClear();
+      const updater = {
+        storeUpdater: proxyStore => {
+          const zuck = proxyStore.create('4', 'User');
+          zuck.setValue('4', 'id');
+        },
+      };
+      environment.applyUpdate(updater);
+      environment.replaceUpdate(updater, {
+        storeUpdater: proxyStore => {
+          const zuck = proxyStore.create('4', 'User');
+          zuck.setValue('4', 'id');
+          zuck.setValue('zuck', 'name');
+        },
+      });
+      expect(callback.mock.calls.length).toBe(2);
+      expect(callback.mock.calls[0][0].data).toEqual({
+        id: '4',
+      });
+      expect(callback.mock.calls[1][0].data).toEqual({
+        id: '4',
+        name: 'zuck',
+      });
     });
   });
 
@@ -389,12 +431,14 @@ describe('RelayModernEnvironment', () => {
       const snapshot = environment.lookup(operationSelector.fragment);
       environment.subscribe(snapshot, callback);
 
-      environment.applyUpdate(store => {
-        const zuck = store.get('4');
-        if (zuck) {
-          const name = zuck.getValue('name');
-          zuck.setValue(name.toUpperCase(), 'name');
-        }
+      environment.applyUpdate({
+        storeUpdater: proxyStore => {
+          const zuck = proxyStore.get('4');
+          if (zuck) {
+            const name = zuck.getValue('name');
+            zuck.setValue(name.toUpperCase(), 'name');
+          }
+        },
       });
 
       environment.commitPayload(operationSelector, {
@@ -461,7 +505,7 @@ describe('RelayModernEnvironment', () => {
       expect(fetch.mock.calls.length).toBe(1);
       expect(fetch.mock.calls[0][0]).toBe(query);
       expect(fetch.mock.calls[0][1]).toEqual({fetchSize: false});
-      expect(fetch.mock.calls[0][2]).toBe(undefined);
+      expect(fetch.mock.calls[0][2]).toEqual({});
     });
 
     it('fetches queries with force:true', () => {
@@ -585,43 +629,14 @@ describe('RelayModernEnvironment', () => {
       onError = jest.fn();
       onNext = jest.fn();
       callbacks = {onCompleted, onError, onNext};
-
-      // eslint-disable-next-line no-shadow
-      fetch = jest.fn((query, variables, cacheConfig, observer) => {
-        let isDisposed = false;
-        subject = {
-          next(data) {
-            if (isDisposed) {
-              return;
-            }
-            // Reuse RelayNetwork's helper for response processing
-            RelayNetwork.create(() => Promise.resolve(data))
-              .request(query, variables, cacheConfig)
-              .then(payload => observer.onNext && observer.onNext(payload))
-              .catch(error => observer.onError && observer.onError(error));
-          },
-          complete() {
-            if (!isDisposed) {
-              observer.onCompleted && onCompleted();
-            }
-          },
-          error(err) {
-            if (!isDisposed) {
-              observer.onError && observer.onError(err);
-            }
-          },
-        };
-        return {
-          dispose() {
-            isDisposed = true;
-          },
-        };
-      });
+      fetch = jest.fn(
+        (_query, _variables, _cacheConfig) =>
+          new RelayObservable(sink => {
+            subject = sink;
+          }),
+      );
       environment = new RelayModernEnvironment({
-        network: {
-          request: () => new Deferred(), // not used in this test
-          requestStream: fetch,
-        },
+        network: RelayNetwork.create(fetch),
         store,
       });
     });
@@ -631,7 +646,7 @@ describe('RelayModernEnvironment', () => {
       expect(fetch.mock.calls.length).toBe(1);
       expect(fetch.mock.calls[0][0]).toBe(query);
       expect(fetch.mock.calls[0][1]).toEqual({fetchSize: false});
-      expect(fetch.mock.calls[0][2]).toBe(undefined);
+      expect(fetch.mock.calls[0][2]).toEqual({});
     });
 
     it('fetches queries with force:true', () => {
@@ -1035,7 +1050,7 @@ describe('RelayModernEnvironment', () => {
         onCompleted,
         onError,
         operation,
-        optimisticResponse: () => ({
+        optimisticResponse: {
           commentCreate: {
             comment: {
               id: commentID,
@@ -1044,7 +1059,7 @@ describe('RelayModernEnvironment', () => {
               },
             },
           },
-        }),
+        },
       });
 
       expect(onCompleted).not.toBeCalled();

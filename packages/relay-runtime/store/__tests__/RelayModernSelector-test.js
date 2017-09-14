@@ -7,11 +7,12 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  *
  * @format
+ * @emails oncall+relay
  */
 
 'use strict';
 
-jest.mock('warning').autoMockOff();
+jest.mock('warning');
 
 const {
   areEqualSelectors,
@@ -34,7 +35,7 @@ describe('RelayModernSelector', () => {
   let variables;
 
   beforeEach(() => {
-    jasmine.addMatchers(RelayModernTestUtils.matchers);
+    expect.extend(RelayModernTestUtils.matchers);
 
     environment = createMockEnvironment();
     ({UserFragment, UserQuery, UsersFragment} = environment.mock.compile(
@@ -121,7 +122,7 @@ describe('RelayModernSelector', () => {
       }).toWarn([
         'RelayModernSelector: Expected object to contain data for fragment ' +
           '`%s`, got `%s`. Make sure that the parent ' +
-          'operation/fragment included fragment `...%s`.',
+          'operation/fragment included fragment `...%s` without `@relay(mask: false)`.',
         'UserFragment',
         '{}',
         'UserFragment',
@@ -156,7 +157,7 @@ describe('RelayModernSelector', () => {
       }).toWarn([
         'RelayModernSelector: Expected object to contain data for fragment ' +
           '`%s`, got `%s`. Make sure that the parent ' +
-          'operation/fragment included fragment `...%s`.',
+          'operation/fragment included fragment `...%s` without `@relay(mask: false)`.',
         'UserFragment',
         '{}',
         'UserFragment',
@@ -197,7 +198,7 @@ describe('RelayModernSelector', () => {
       }).toWarn([
         'RelayModernSelector: Expected object to contain data for fragment ' +
           '`%s`, got `%s`. Make sure that the parent ' +
-          'operation/fragment included fragment `...%s`.',
+          'operation/fragment included fragment `...%s` without `@relay(mask: false)`.',
         'UserFragment',
         '{}',
         'UserFragment',
@@ -293,7 +294,7 @@ describe('RelayModernSelector', () => {
       }).toWarn([
         'RelayModernSelector: Expected object to contain data for fragment ' +
           '`%s`, got `%s`. Make sure that the parent ' +
-          'operation/fragment included fragment `...%s`.',
+          'operation/fragment included fragment `...%s` without `@relay(mask: false)`.',
         'UserFragment',
         '{}',
         'UserFragment',
@@ -376,7 +377,7 @@ describe('RelayModernSelector', () => {
       }).toWarn([
         'RelayModernSelector: Expected object to contain data for fragment ' +
           '`%s`, got `%s`. Make sure that the parent ' +
-          'operation/fragment included fragment `...%s`.',
+          'operation/fragment included fragment `...%s` without `@relay(mask: false)`.',
         'UserFragment',
         '{}',
         'UserFragment',
