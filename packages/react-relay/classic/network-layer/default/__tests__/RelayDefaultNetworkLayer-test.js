@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails oncall+relay
  * @format
@@ -12,17 +10,20 @@
 
 'use strict';
 
-jest.enableAutomock().useFakeTimers();
+jest
+  .mock('fetch')
+  .mock('fetchWithRetries')
+  .useFakeTimers();
 
 require('configureForRelayOSS');
 
-const RelayClassic = require('RelayClassic');
+const RelayClassic = require('../../RelayPublic');
 const {ConnectionInterface} = require('RelayRuntime');
-const RelayDefaultNetworkLayer = require('RelayDefaultNetworkLayer');
-const RelayMetaRoute = require('RelayMetaRoute');
-const RelayMutationRequest = require('RelayMutationRequest');
-const RelayQuery = require('RelayQuery');
-const RelayQueryRequest = require('RelayQueryRequest');
+const RelayDefaultNetworkLayer = require('../RelayDefaultNetworkLayer');
+const RelayMetaRoute = require('../../../route/RelayMetaRoute');
+const RelayMutationRequest = require('../../../network/RelayMutationRequest');
+const RelayQuery = require('../../../query/RelayQuery');
+const RelayQueryRequest = require('../../../network/RelayQueryRequest');
 const RelayTestUtils = require('RelayTestUtils');
 
 const fetch = require('fetch');

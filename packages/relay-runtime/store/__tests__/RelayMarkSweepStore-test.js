@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @format
  * @emails oncall+relay
@@ -18,7 +16,6 @@ const RelayModernRecord = require('RelayModernRecord');
 const RelayModernTestUtils = require('RelayModernTestUtils');
 const RelayStoreUtils = require('RelayStoreUtils');
 
-const forEachObject = require('forEachObject');
 const simpleClone = require('simpleClone');
 
 const {REF_KEY, ROOT_ID, ROOT_TYPE} = RelayStoreUtils;
@@ -45,7 +42,7 @@ describe('RelayStore', () => {
           id: '4',
           __typename: 'User',
           name: 'Zuck',
-          'profilePicture{"size":32}': {[REF_KEY]: 'client:1'},
+          'profilePicture(size:32)': {[REF_KEY]: 'client:1'},
         },
         'client:1': {
           __id: 'client:1',
@@ -112,7 +109,7 @@ describe('RelayStore', () => {
         [ROOT_ID]: {
           __id: ROOT_ID,
           __typename: ROOT_TYPE,
-          'node{"id":"842472"}': {[REF_KEY]: '842472'},
+          'node(id:"842472")': {[REF_KEY]: '842472'},
         },
       });
       store.publish(nextSource);
@@ -146,7 +143,7 @@ describe('RelayStore', () => {
           id: '4',
           __typename: 'User',
           name: 'Zuck',
-          'profilePicture{"size":32}': {[REF_KEY]: 'client:1'},
+          'profilePicture(size:32)': {[REF_KEY]: 'client:1'},
         },
         'client:1': {
           __id: 'client:1',
@@ -186,9 +183,12 @@ describe('RelayStore', () => {
           ...data,
         },
       });
-      forEachObject(snapshot.seenRecords, (record, id) => {
-        expect(record).toBe(data[id]);
-      });
+      for (const id in snapshot.seenRecords) {
+        if (snapshot.seenRecords.hasOwnProperty(id)) {
+          const record = snapshot.seenRecords[id];
+          expect(record).toBe(data[id]);
+        }
+      }
     });
 
     it('returns deeply-frozen objects', () => {
@@ -206,7 +206,7 @@ describe('RelayStore', () => {
         4: {
           __id: '4',
           __typename: 'User',
-          'profilePicture{"size":32}': {[REF_KEY]: 'client:2'},
+          'profilePicture(size:32)': {[REF_KEY]: 'client:2'},
         },
         'client:2': {
           __id: 'client:2',
@@ -252,7 +252,7 @@ describe('RelayStore', () => {
           id: '4',
           __typename: 'User',
           name: 'Zuck',
-          'profilePicture{"size":32}': {[REF_KEY]: 'client:1'},
+          'profilePicture(size:32)': {[REF_KEY]: 'client:1'},
           emailAddresses: ['a@b.com'],
         },
         'client:1': {
@@ -566,7 +566,7 @@ describe('RelayStore', () => {
           id: '4',
           __typename: 'User',
           name: 'Zuck',
-          'profilePicture{"size":32}': {[REF_KEY]: 'client:1'},
+          'profilePicture(size:32)': {[REF_KEY]: 'client:1'},
         },
         'client:1': {
           __id: 'client:1',

@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule fetchRelayModernQuery
  * @flow
@@ -13,11 +11,12 @@
 
 'use strict';
 
+const RelayConcreteNode = require('RelayConcreteNode');
+
 const invariant = require('invariant');
 
-import type {CacheConfig} from 'RelayCombinedEnvironmentTypes';
+import type {CacheConfig, Variables} from '../util/RelayRuntimeTypes';
 import type {GraphQLTaggedNode} from 'RelayModernGraphQLTag';
-import type {Variables} from 'RelayTypes';
 
 /**
  * A helper function to fetch the results of a query. Note that results for
@@ -43,24 +42,22 @@ function fetchRelayModernQuery(
     'fetchRelayModernQuery: Expected a valid Relay environment, got `%s`.',
     environment,
   );
-  const {createOperationSelector, getOperation} = environment.unstable_internal;
-  const query = getOperation(taggedNode);
+  const {createOperationSelector, getRequest} = environment.unstable_internal;
+  const query = getRequest(taggedNode);
+  if (query.kind === RelayConcreteNode.BATCH_REQUEST) {
+    throw new Error(
+      'fetchRelayModernQuery: Batch request not supported in this API.',
+    );
+  }
+  if (query.operationKind !== 'query') {
+    throw new Error('fetchRelayModernQuery: Expected query operation');
+  }
   const operation = createOperationSelector(query, variables);
-  return new Promise((resolve, reject) => {
-    environment.sendQuery({
-      cacheConfig,
-      onError: reject,
-      onCompleted() {
-        try {
-          const snapshot = environment.lookup(operation.fragment);
-          resolve(snapshot.data);
-        } catch (e) {
-          reject(e);
-        }
-      },
-      operation,
-    });
-  });
+
+  return environment
+    .execute({operation, cacheConfig})
+    .map(() => environment.lookup(operation.fragment).data)
+    .toPromise();
 }
 
 module.exports = fetchRelayModernQuery;

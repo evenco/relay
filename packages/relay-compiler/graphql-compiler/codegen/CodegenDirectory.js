@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule CodegenDirectory
  * @flow
@@ -13,11 +11,15 @@
 
 'use strict';
 
+const Profiler = require('../core/GraphQLCompilerProfiler');
+
 const fs = require('fs');
 const invariant = require('invariant');
 const path = require('path');
 
-type Stats = {
+import type {SourceControl} from './SourceControl';
+
+type Changes = {
   deleted: Array<string>,
   updated: Array<string>,
   created: Array<string>,
@@ -51,7 +53,7 @@ type Stats = {
  *   dir.changes.unchanged
  */
 class CodegenDirectory {
-  changes: Stats;
+  changes: Changes;
   _files: Set<string>;
   _dir: string;
   onlyValidate: boolean;
@@ -70,7 +72,13 @@ class CodegenDirectory {
         dir,
       );
     } else if (!this.onlyValidate) {
-      fs.mkdirSync(dir);
+      const dirs = [dir];
+      let parent = path.dirname(dir);
+      while (!fs.existsSync(parent)) {
+        dirs.unshift(parent);
+        parent = path.dirname(parent);
+      }
+      dirs.forEach(d => fs.mkdirSync(d));
     }
     this._files = new Set();
     this.changes = {
@@ -80,6 +88,82 @@ class CodegenDirectory {
       unchanged: [],
     };
     this._dir = dir;
+  }
+
+  static combineChanges(dirs: Array<CodegenDirectory>): Changes {
+    const changes = {
+      deleted: [],
+      updated: [],
+      created: [],
+      unchanged: [],
+    };
+    dirs.forEach(dir => {
+      changes.deleted.push(...dir.changes.deleted);
+      changes.updated.push(...dir.changes.updated);
+      changes.created.push(...dir.changes.created);
+      changes.unchanged.push(...dir.changes.unchanged);
+    });
+    return changes;
+  }
+
+  static hasChanges(changes: Changes): boolean {
+    return (
+      changes.created.length > 0 ||
+      changes.updated.length > 0 ||
+      changes.deleted.length > 0
+    );
+  }
+
+  static printChanges(
+    changes: Changes,
+    options: {onlyValidate: boolean},
+  ): void {
+    Profiler.run('CodegenDirectory.printChanges', () => {
+      const output = [];
+      function printFiles(label, files) {
+        if (files.length > 0) {
+          output.push(label + ':');
+          files.forEach(file => {
+            output.push(' - ' + file);
+          });
+        }
+      }
+      if (options.onlyValidate) {
+        printFiles('Missing', changes.created);
+        printFiles('Out of date', changes.updated);
+        printFiles('Extra', changes.deleted);
+      } else {
+        printFiles('Created', changes.created);
+        printFiles('Updated', changes.updated);
+        printFiles('Deleted', changes.deleted);
+        output.push(`Unchanged: ${changes.unchanged.length} files`);
+      }
+      // eslint-disable-next-line no-console
+      console.log(output.join('\n'));
+    });
+  }
+
+  static async sourceControlAddRemove(
+    sourceControl: SourceControl,
+    dirs: $ReadOnlyArray<CodegenDirectory>,
+  ): Promise<void> {
+    const allAdded = [];
+    const allRemoved = [];
+    dirs.forEach(dir => {
+      dir.changes.created.forEach(name => {
+        allAdded.push(dir.getPath(name));
+      });
+      dir.changes.deleted.forEach(name => {
+        allRemoved.push(dir.getPath(name));
+      });
+    });
+    sourceControl.addRemove(allAdded, allRemoved);
+  }
+
+  printChanges(): void {
+    CodegenDirectory.printChanges(this.changes, {
+      onlyValidate: this.onlyValidate,
+    });
   }
 
   read(filename: string): ?string {
@@ -106,20 +190,22 @@ class CodegenDirectory {
   }
 
   writeFile(filename: string, content: string): void {
-    this._addGenerated(filename);
-    const filePath = path.join(this._dir, filename);
-    if (fs.existsSync(filePath)) {
-      const existingContent = fs.readFileSync(filePath, 'utf8');
-      if (existingContent === content) {
-        this.changes.unchanged.push(filename);
+    Profiler.run('CodegenDirectory.writeFile', () => {
+      this._addGenerated(filename);
+      const filePath = path.join(this._dir, filename);
+      if (fs.existsSync(filePath)) {
+        const existingContent = fs.readFileSync(filePath, 'utf8');
+        if (existingContent === content) {
+          this.changes.unchanged.push(filename);
+        } else {
+          this._writeFile(filePath, content);
+          this.changes.updated.push(filename);
+        }
       } else {
         this._writeFile(filePath, content);
-        this.changes.updated.push(filename);
+        this.changes.created.push(filename);
       }
-    } else {
-      this._writeFile(filePath, content);
-      this.changes.created.push(filename);
-    }
+    });
   }
 
   _writeFile(filePath: string, content: string): void {
@@ -133,23 +219,25 @@ class CodegenDirectory {
    * files with names starting with ".").
    */
   deleteExtraFiles(): void {
-    fs.readdirSync(this._dir).forEach(actualFile => {
-      if (!this._files.has(actualFile) && !/^\./.test(actualFile)) {
-        if (!this.onlyValidate) {
-          try {
-            fs.unlinkSync(path.join(this._dir, actualFile));
-          } catch (e) {
-            throw new Error(
-              'CodegenDirectory: Failed to delete `' +
-                actualFile +
-                '` in `' +
-                this._dir +
-                '`.',
-            );
+    Profiler.run('CodegenDirectory.deleteExtraFiles', () => {
+      fs.readdirSync(this._dir).forEach(actualFile => {
+        if (!this._files.has(actualFile) && !/^\./.test(actualFile)) {
+          if (!this.onlyValidate) {
+            try {
+              fs.unlinkSync(path.join(this._dir, actualFile));
+            } catch (e) {
+              throw new Error(
+                'CodegenDirectory: Failed to delete `' +
+                  actualFile +
+                  '` in `' +
+                  this._dir +
+                  '`.',
+              );
+            }
           }
+          this.changes.deleted.push(actualFile);
         }
-        this.changes.deleted.push(actualFile);
-      }
+      });
     });
   }
 

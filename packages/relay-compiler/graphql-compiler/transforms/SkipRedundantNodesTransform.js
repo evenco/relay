@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule SkipRedundantNodesTransform
  * @flow
@@ -13,13 +11,14 @@
 
 'use strict';
 
-const RelayCompilerContext = require('../core/RelayCompilerContext');
+const GraphQLCompilerContext = require('../core/GraphQLCompilerContext');
+const GraphQLIRTransformer = require('../core/GraphQLIRTransformer');
 const IMap = require('immutable').Map;
 
-const getIdentifierForRelaySelection = require('../core/getIdentifierForRelaySelection');
+const getIdentifierForSelection = require('../core/getIdentifierForSelection');
 const invariant = require('invariant');
 
-import type {Node, Selection} from '../core/RelayIR';
+import type {Fragment, Node, Root, Selection} from '../core/GraphQLIR';
 
 /**
  * A simplified representation of a document: keys in the map are unique
@@ -100,7 +99,7 @@ type SelectionMap = IMap<string, ?SelectionMap>;
  *       cc
  *     }
  *   }
-*  }
+ *  }
  * ```
  *
  * Becomes
@@ -115,21 +114,22 @@ type SelectionMap = IMap<string, ?SelectionMap>;
  *       cc
  *     }
  *   }
-*  }
+ *  }
  * ```
  *
  * 1 can be skipped because it is already fetched at the outer level.
  */
-function transform(context: RelayCompilerContext): RelayCompilerContext {
-  return context.documents().reduce((ctx: RelayCompilerContext, node) => {
-    const selectionMap = new IMap();
-    const transformed = transformNode(node, selectionMap);
-    if (transformed) {
-      return ctx.add(transformed.node);
-    } else {
-      return ctx;
-    }
-  }, new RelayCompilerContext(context.schema));
+function skipRedundantNodesTransform(
+  context: GraphQLCompilerContext,
+): GraphQLCompilerContext {
+  return GraphQLIRTransformer.transform(context, {
+    Root: visitNode,
+    Fragment: visitNode,
+  });
+}
+
+function visitNode<T: Fragment | Root>(node: T): ?T {
+  return transformNode(node, new IMap()).node;
 }
 
 /**
@@ -148,12 +148,13 @@ function transform(context: RelayCompilerContext): RelayCompilerContext {
 function transformNode<T: Node>(
   node: T,
   selectionMap: SelectionMap,
-): ?{selectionMap: SelectionMap, node: T} {
+): {selectionMap: SelectionMap, node: ?T} {
   const selections = [];
   sortSelections(node.selections).forEach(selection => {
-    const identifier = getIdentifierForRelaySelection(selection);
+    const identifier = getIdentifierForSelection(selection);
     switch (selection.kind) {
       case 'ScalarField':
+      case 'DeferrableFragmentSpread':
       case 'FragmentSpread': {
         if (!selectionMap.has(identifier)) {
           selections.push(selection);
@@ -166,7 +167,7 @@ function transformNode<T: Node>(
           selection,
           selectionMap.get(identifier) || new IMap(),
         );
-        if (transformed) {
+        if (transformed.node) {
           selections.push(transformed.node);
           selectionMap = selectionMap.set(identifier, transformed.selectionMap);
         }
@@ -180,7 +181,7 @@ function transformNode<T: Node>(
           selection,
           selectionMap.get(identifier) || selectionMap,
         );
-        if (transformed) {
+        if (transformed.node) {
           selections.push(transformed.node);
           selectionMap = selectionMap.set(identifier, transformed.selectionMap);
         }
@@ -194,16 +195,8 @@ function transformNode<T: Node>(
         );
     }
   });
-  if (!selections.length) {
-    return null;
-  }
-  return {
-    selectionMap,
-    node: ({
-      ...node,
-      selections,
-    }: any),
-  };
+  const nextNode: any = selections.length ? {...node, selections} : null;
+  return {selectionMap, node: nextNode};
 }
 
 /**
@@ -217,4 +210,6 @@ function sortSelections(selections: Array<Selection>): Array<Selection> {
   });
 }
 
-module.exports = {transform};
+module.exports = {
+  transform: skipRedundantNodesTransform,
+};

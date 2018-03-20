@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule normalizePayload
  * @flow
@@ -19,24 +17,18 @@ const normalizeRelayPayload = require('normalizeRelayPayload');
 
 const {ROOT_ID} = require('RelayStoreUtils');
 
-import type {ConcreteBatch} from 'RelayConcreteNode';
-import type {QueryPayload, RelayResponsePayload} from 'RelayNetworkTypes';
-import type {Variables} from 'RelayTypes';
+import type {ExecutePayload} from 'RelayNetworkTypes';
+import type {RelayResponsePayload} from 'RelayStoreTypes';
 
-function normalizePayload(
-  operation: ConcreteBatch,
-  variables: Variables,
-  payload: QueryPayload,
-): RelayResponsePayload {
-  const {data, errors} = payload;
+function normalizePayload(payload: ExecutePayload): RelayResponsePayload {
+  const {operation, variables, response} = payload;
+  const {data, errors} = response;
   if (data != null) {
     return normalizeRelayPayload(
       {
         dataID: ROOT_ID,
-        node: operation.query,
-        variables: payload.rerunVariables
-          ? {...variables, ...payload.rerunVariables}
-          : variables,
+        node: operation,
+        variables,
       },
       data,
       errors,

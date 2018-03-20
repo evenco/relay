@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayModernOperationSelector
  * @flow
@@ -13,12 +11,14 @@
 
 'use strict';
 
+const RelayConcreteNode = require('RelayConcreteNode');
+
 const {getOperationVariables} = require('RelayConcreteVariables');
 const {ROOT_ID} = require('RelayStoreUtils');
 
-import type {ConcreteBatch} from 'RelayConcreteNode';
+import type {Variables} from '../util/RelayRuntimeTypes';
+import type {RequestNode, ConcreteOperation} from 'RelayConcreteNode';
 import type {OperationSelector} from 'RelayStoreTypes';
-import type {Variables} from 'RelayTypes';
 
 /**
  * Creates an instance of the `OperationSelector` type defined in
@@ -27,21 +27,28 @@ import type {Variables} from 'RelayTypes';
  * operation, and default values are populated for null values.
  */
 function createOperationSelector(
-  operation: ConcreteBatch,
+  request: RequestNode,
   variables: Variables,
+  operationFromBatch?: ConcreteOperation,
 ): OperationSelector {
+  const operation =
+    operationFromBatch ||
+    (request.kind === RelayConcreteNode.BATCH_REQUEST
+      ? request.requests[0].operation
+      : request.operation);
+
   const operationVariables = getOperationVariables(operation, variables);
   const dataID = ROOT_ID;
   return {
     fragment: {
       dataID,
-      node: operation.fragment,
+      node: request.fragment,
       variables: operationVariables,
     },
-    node: operation,
+    node: request,
     root: {
       dataID,
-      node: operation.query,
+      node: operation,
       variables: operationVariables,
     },
     variables: operationVariables,

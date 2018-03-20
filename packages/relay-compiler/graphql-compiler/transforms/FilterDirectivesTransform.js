@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule FilterDirectivesTransform
  * @flow
@@ -13,27 +11,21 @@
 
 'use strict';
 
-const RelayCompilerContext = require('../core/RelayCompilerContext');
-const RelayIRTransformer = require('../core/RelayIRTransformer');
+const GraphQLCompilerContext = require('../core/GraphQLCompilerContext');
+const GraphQLIRTransformer = require('../core/GraphQLIRTransformer');
 
-import type {Directive} from '../core/RelayIR';
-import type {GraphQLSchema} from 'graphql';
-
-type State = GraphQLSchema;
+import type {Directive} from '../core/GraphQLIR';
 
 /**
  * A transform that removes any directives that were not present in the
- * original schema.
+ * server schema.
  */
-function transform(
-  context: RelayCompilerContext,
-  schema: GraphQLSchema,
-): RelayCompilerContext {
-  return RelayIRTransformer.transform(
-    context,
-    {Directive: visitDirective},
-    () => schema,
-  );
+function filterDirectivesTransform(
+  context: GraphQLCompilerContext,
+): GraphQLCompilerContext {
+  return GraphQLIRTransformer.transform(context, {
+    Directive: visitDirective,
+  });
 }
 
 /**
@@ -41,10 +33,10 @@ function transform(
  *
  * Skip directives not defined in the original schema.
  */
-function visitDirective(directive: Directive, state: State): ?Directive {
+function visitDirective(directive: Directive): ?Directive {
   if (
-    state
-      .getDirectives()
+    this.getContext()
+      .serverSchema.getDirectives()
       .some(schemaDirective => schemaDirective.name === directive.name)
   ) {
     return directive;
@@ -52,4 +44,6 @@ function visitDirective(directive: Directive, state: State): ?Directive {
   return null;
 }
 
-module.exports = {transform};
+module.exports = {
+  transform: filterDirectivesTransform,
+};

@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @format
  * @flow
@@ -43,8 +41,8 @@ describe('RelayDataLoader', () => {
           id: '1',
           __typename: 'User',
           firstName: 'Alice',
-          'friends{"first":3}': {__ref: 'client:1'},
-          'profilePicture{"size":32}': {__ref: 'client:4'},
+          'friends(first:3)': {__ref: 'client:1'},
+          'profilePicture(size:32)': {__ref: 'client:4'},
         },
         '2': {
           __id: '2',
@@ -85,7 +83,7 @@ describe('RelayDataLoader', () => {
         'client:root': {
           __id: 'client:root',
           __typename: '__Root',
-          'node{"id":"1"}': {__ref: '1'},
+          'node(id:"1")': {__ref: '1'},
         },
       };
       ({Query} = generateWithTransforms(
@@ -128,7 +126,7 @@ describe('RelayDataLoader', () => {
         target,
         {
           dataID: ROOT_ID,
-          node: Query,
+          node: Query.fragment,
           variables: {id: '1', size: 32},
         },
         [],
@@ -144,8 +142,8 @@ describe('RelayDataLoader', () => {
           id: '1',
           __typename: 'User',
           firstName: 'Alice',
-          'friends{"first":1}': {__ref: 'client:1'},
-          'profilePicture{"size":32}': {__ref: 'client:3'},
+          'friends(first:1)': {__ref: 'client:1'},
+          'profilePicture(size:32)': {__ref: 'client:3'},
         },
         '2': {
           __id: '2',
@@ -217,7 +215,7 @@ describe('RelayDataLoader', () => {
           __id: '1',
           id: '1',
           __typename: 'User',
-          'profilePicture{"size":32}': {__ref: 'client:1'},
+          'profilePicture(size:32)': {__ref: 'client:1'},
           [handleKey]: {__ref: 'client:3'},
         },
         'client:1': {
@@ -265,7 +263,7 @@ describe('RelayDataLoader', () => {
           target,
           {
             dataID: ROOT_ID,
-            node: Query,
+            node: Query.fragment,
             variables: {id: '1', size: 32},
           },
           [],
@@ -283,7 +281,7 @@ describe('RelayDataLoader', () => {
             id: '1',
             __typename: 'User',
             firstName: 'Alice',
-            'profilePicture{"size":32}': {__ref: 'client:3'},
+            'profilePicture(size:32)': {__ref: 'client:3'},
           },
           // missing profilePicture record
         };
@@ -323,7 +321,7 @@ describe('RelayDataLoader', () => {
             id: '1',
             __typename: 'User',
             firstName: 'Alice',
-            'profilePicture{"size":32}': {__ref: 'client:3'},
+            'profilePicture(size:32)': {__ref: 'client:3'},
           },
           'client:3': {
             __id: 'client:3',
@@ -366,7 +364,7 @@ describe('RelayDataLoader', () => {
             id: '1',
             __typename: 'User',
             firstName: 'Alice',
-            'profilePicture{"size":32}': {__ref: 'client:3'},
+            'profilePicture(size:32)': {__ref: 'client:3'},
           },
           'client:3': {
             __id: 'client:3',
@@ -486,7 +484,7 @@ describe('RelayDataLoader', () => {
             __id: '1',
             __typename: 'User',
             firstName: 'Alice',
-            'profilePicture{"size":32}': {__ref: 'profile_1_32'},
+            'profilePicture(size:32)': {__ref: 'profile_1_32'},
           },
         });
       });

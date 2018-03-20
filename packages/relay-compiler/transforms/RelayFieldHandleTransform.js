@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayFieldHandleTransform
  * @flow
@@ -13,37 +11,27 @@
 
 'use strict';
 
-const RelayCompilerContext = require('RelayCompilerContext');
-const RelayIRTransformer = require('RelayIRTransformer');
-
+// TODO T21875029 ../../relay-runtime/util/getRelayHandleKey
 const getRelayHandleKey = require('getRelayHandleKey');
 const invariant = require('invariant');
 
-import type {Field} from 'RelayIR';
-import type {GraphQLSchema} from 'graphql';
+const {CompilerContext, IRTransformer} = require('graphql-compiler');
 
-type State = true;
+import type {Field} from 'graphql-compiler';
 
-function transform(
-  context: RelayCompilerContext,
-  schema: GraphQLSchema,
-): RelayCompilerContext {
-  return RelayIRTransformer.transform(
-    context,
-    {
-      LinkedField: visitField,
-      ScalarField: visitField,
-    },
-    () => true,
-  );
+function relayFieldHandleTransform(context: CompilerContext): CompilerContext {
+  return IRTransformer.transform(context, {
+    LinkedField: visitField,
+    ScalarField: visitField,
+  });
 }
 
 /**
  * @internal
  */
-function visitField<F: Field>(field: F, state: State): F {
+function visitField<F: Field>(field: F): F {
   if (field.kind === 'LinkedField') {
-    field = this.traverse(field, state);
+    field = this.traverse(field);
   }
   const handles = field.handles;
   if (!handles || !handles.length) {
@@ -73,4 +61,6 @@ function visitField<F: Field>(field: F, state: State): F {
   }: $FlowIssue);
 }
 
-module.exports = {transform};
+module.exports = {
+  transform: relayFieldHandleTransform,
+};

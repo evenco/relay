@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails oncall+relay
  * @format
@@ -12,27 +10,28 @@
 
 'use strict';
 
-jest.enableAutomock();
+jest
+  .mock('../../query-config/RelayQueryConfig')
+  .mock('../../store/RelayEnvironment');
 
 require('configureForRelayOSS');
 
-jest.unmock('RelayRenderer');
-
 const React = require('React');
-const ReactTestUtils = require('ReactTestUtils');
-const RelayClassic = require('RelayClassic');
-const RelayEnvironment = require('RelayEnvironment');
-const RelayQueryConfig = require('RelayQueryConfig');
-const RelayRenderer = require('RelayRenderer');
+const Relay = require('../../RelayPublic');
+const RelayEnvironment = require('../../store/RelayEnvironment');
+const RelayQueryConfig = require('../../query-config/RelayQueryConfig');
+const RelayRenderer = require('../RelayRenderer');
 const RelayTestUtils = require('RelayTestUtils');
+const ShallowRenderer = require('react-test-renderer/shallow');
 
 describe('RelayRenderer.validation', () => {
   let MockComponent;
   let MockContainer;
-  let ShallowRenderer;
 
   let queryConfig;
   let environment;
+  let shallowRenderer;
+
   const {error} = console;
 
   beforeEach(() => {
@@ -44,10 +43,11 @@ describe('RelayRenderer.validation', () => {
         return <div />;
       }
     };
-    MockContainer = RelayClassic.createContainer(MockComponent, {
+    MockContainer = Relay.createContainer(MockComponent, {
       fragments: {},
     });
-    ShallowRenderer = ReactTestUtils.createRenderer();
+
+    shallowRenderer = new ShallowRenderer();
 
     queryConfig = RelayQueryConfig.genMockInstance();
     environment = new RelayEnvironment();
@@ -69,7 +69,7 @@ describe('RelayRenderer.validation', () => {
 
   it('requires a valid `Container` prop', () => {
     expect(() =>
-      ShallowRenderer.render(
+      shallowRenderer.render(
         <RelayRenderer queryConfig={queryConfig} environment={environment} />,
       ),
     ).toThrowError(
@@ -78,7 +78,7 @@ describe('RelayRenderer.validation', () => {
     );
 
     expect(() =>
-      ShallowRenderer.render(
+      shallowRenderer.render(
         <RelayRenderer
           Container={MockComponent}
           queryConfig={queryConfig}
@@ -93,7 +93,7 @@ describe('RelayRenderer.validation', () => {
 
   it('requires a valid `queryConfig` prop', () => {
     expect(() =>
-      ShallowRenderer.render(
+      shallowRenderer.render(
         <RelayRenderer Container={MockContainer} environment={environment} />,
       ),
     ).toThrowError(
@@ -102,7 +102,7 @@ describe('RelayRenderer.validation', () => {
     );
 
     expect(() =>
-      ShallowRenderer.render(
+      shallowRenderer.render(
         <RelayRenderer
           Container={MockContainer}
           queryConfig={{}}
@@ -117,7 +117,7 @@ describe('RelayRenderer.validation', () => {
 
   it('requires a valid `environment` prop', () => {
     expect(() =>
-      ShallowRenderer.render(
+      shallowRenderer.render(
         <RelayRenderer Container={MockContainer} queryConfig={queryConfig} />,
       ),
     ).toThrowError(
@@ -127,7 +127,7 @@ describe('RelayRenderer.validation', () => {
     );
 
     expect(() =>
-      ShallowRenderer.render(
+      shallowRenderer.render(
         <RelayRenderer
           Container={MockContainer}
           queryConfig={queryConfig}

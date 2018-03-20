@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @flow
  * @providesModule RelayCompilerBin
@@ -15,14 +13,18 @@
 
 require('babel-polyfill');
 
-const RelayCodegenRunner = require('RelayCodegenRunner');
-const RelayConsoleReporter = require('RelayConsoleReporter');
-const RelayFileIRParser = require('RelayFileIRParser');
-const RelayFileWriter = require('RelayFileWriter');
-const RelayIRTransforms = require('RelayIRTransforms');
-const RelayWatchmanClient = require('RelayWatchmanClient');
+const {
+  CodegenRunner,
+  ConsoleReporter,
+  WatchmanClient,
+  DotGraphQLParser,
+} = require('graphql-compiler');
 
-const formatGeneratedModule = require('formatGeneratedModule');
+const RelayJSModuleParser = require('../core/RelayJSModuleParser');
+const RelayFileWriter = require('../codegen/RelayFileWriter');
+const RelayIRTransforms = require('../core/RelayIRTransforms');
+
+const formatGeneratedModule = require('../codegen/formatGeneratedModule');
 const fs = require('fs');
 const path = require('path');
 const yargs = require('yargs');
@@ -35,6 +37,7 @@ const {
 } = require('graphql');
 
 const {
+  commonTransforms,
   codegenTransforms,
   fragmentTransforms,
   printTransforms,
@@ -42,6 +45,7 @@ const {
   schemaExtensions,
 } = RelayIRTransforms;
 
+import type {GetWriterOptions} from 'graphql-compiler';
 import type {GraphQLSchema} from 'graphql';
 
 function buildWatchExpression(options: {
@@ -72,17 +76,12 @@ function getFilepathsFromGlob(
   const {extensions, include, exclude} = options;
   const patterns = include.map(inc => `${inc}/*.+(${extensions.join('|')})`);
 
-  // $FlowFixMe(site=react_native_fb,www)
   const glob = require('fast-glob');
   return glob.sync(patterns, {
     cwd: baseDir,
-    bashNative: [],
-    onlyFiles: true,
     ignore: exclude,
   });
 }
-
-/* eslint-disable no-console-disallow */
 
 async function run(options: {
   schema: string,
@@ -94,6 +93,7 @@ async function run(options: {
   watchman: boolean,
   watch?: ?boolean,
   validate: boolean,
+  quiet: boolean,
 }) {
   const schemaPath = path.resolve(process.cwd(), options.schema);
   if (!fs.existsSync(schemaPath)) {
@@ -120,37 +120,65 @@ Ensure that one such file exists in ${srcDir} or its parents.
     `.trim(),
     );
   }
+  if (options.verbose && options.quiet) {
+    throw new Error("I can't be quiet and verbose at the same time");
+  }
 
-  const reporter = new RelayConsoleReporter({verbose: options.verbose});
+  const reporter = new ConsoleReporter({
+    verbose: options.verbose,
+    quiet: options.quiet,
+  });
 
-  const useWatchman =
-    options.watchman && (await RelayWatchmanClient.isAvailable());
+  const useWatchman = options.watchman && (await WatchmanClient.isAvailable());
+
+  const schema = getSchema(schemaPath);
+
+  const graphqlSearchOptions = {
+    extensions: ['graphql'],
+    include: options.include,
+    exclude: [path.relative(srcDir, schemaPath)].concat(options.exclude),
+  };
 
   const parserConfigs = {
-    default: {
+    js: {
       baseDir: srcDir,
-      getFileFilter: RelayFileIRParser.getFileFilter,
-      getParser: RelayFileIRParser.getParser,
-      getSchema: () => getSchema(schemaPath),
+      getFileFilter: RelayJSModuleParser.getFileFilter,
+      getParser: RelayJSModuleParser.getParser,
+      getSchema: () => schema,
       watchmanExpression: useWatchman ? buildWatchExpression(options) : null,
       filepaths: useWatchman ? null : getFilepathsFromGlob(srcDir, options),
     },
+    graphql: {
+      baseDir: srcDir,
+      getParser: DotGraphQLParser.getParser,
+      getSchema: () => schema,
+      watchmanExpression: useWatchman
+        ? buildWatchExpression(graphqlSearchOptions)
+        : null,
+      filepaths: useWatchman
+        ? null
+        : getFilepathsFromGlob(srcDir, graphqlSearchOptions),
+    },
   };
   const writerConfigs = {
-    default: {
+    js: {
       getWriter: getRelayFileWriter(srcDir),
       isGeneratedFile: (filePath: string) =>
         filePath.endsWith('.js') && filePath.includes('__generated__'),
-      parser: 'default',
+      parser: 'js',
+      baseParsers: ['graphql'],
     },
   };
-  const codegenRunner = new RelayCodegenRunner({
+  const codegenRunner = new CodegenRunner({
     reporter,
     parserConfigs,
     writerConfigs,
     onlyValidate: options.validate,
+    // TODO: allow passing in a flag or detect?
+    sourceControl: null,
   });
   if (!options.validate && !options.watch && options.watchman) {
+    // eslint-disable-next-line no-console
     console.log('HINT: pass --watch to keep watching for changes.');
   }
   const result = options.watch
@@ -166,23 +194,36 @@ Ensure that one such file exists in ${srcDir} or its parents.
 }
 
 function getRelayFileWriter(baseDir: string) {
-  return (onlyValidate, schema, documents, baseDocuments) =>
+  return ({
+    onlyValidate,
+    schema,
+    documents,
+    baseDocuments,
+    sourceControl,
+    reporter,
+  }: GetWriterOptions) =>
     new RelayFileWriter({
       config: {
-        formatModule: formatGeneratedModule,
+        baseDir,
         compilerTransforms: {
+          commonTransforms,
           codegenTransforms,
           fragmentTransforms,
           printTransforms,
           queryTransforms,
         },
-        baseDir,
+        customScalars: {},
+        formatModule: formatGeneratedModule,
+        inputFieldWhiteListForFlow: [],
         schemaExtensions,
+        useHaste: false,
       },
       onlyValidate,
       schema,
       baseDocuments,
       documents,
+      reporter,
+      sourceControl,
     });
 }
 
@@ -193,12 +234,12 @@ function getSchema(schemaPath: string): GraphQLSchema {
       source = printSchema(buildClientSchema(JSON.parse(source).data));
     }
     source = `
-  directive @include(if: Boolean) on FRAGMENT | FIELD
-  directive @skip(if: Boolean) on FRAGMENT | FIELD
+  directive @include(if: Boolean) on FRAGMENT_SPREAD | FIELD
+  directive @skip(if: Boolean) on FRAGMENT_SPREAD | FIELD
 
   ${source}
   `;
-    return buildASTSchema(parse(source));
+    return buildASTSchema(parse(source), {assumeValid: true});
   } catch (error) {
     throw new Error(
       `
@@ -272,6 +313,10 @@ const argv = yargs
       describe: 'More verbose logging',
       type: 'boolean',
     },
+    quiet: {
+      describe: 'No output to stdout',
+      type: 'boolean',
+    },
     watchman: {
       describe: 'Use watchman when not in watch mode',
       type: 'boolean',
@@ -292,6 +337,7 @@ const argv = yargs
   .help().argv;
 
 // Run script with args
+// $FlowFixMe: Invalid types for yargs. Please fix this when touching this code.
 run(argv).catch(error => {
   console.error(String(error.stack || error));
   process.exit(1);

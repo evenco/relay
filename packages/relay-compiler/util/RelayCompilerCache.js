@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayCompilerCache
  * @flow
@@ -17,6 +15,8 @@ const crypto = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+
+const {Profiler} = require('graphql-compiler');
 
 /**
  * A file backed cache. Values are JSON encoded on disk, so only JSON
@@ -46,13 +46,15 @@ class RelayCompilerCache<T> {
   }
 
   getOrCompute(key: string, compute: () => T): T {
-    const cacheFile = path.join(this._dir, key);
-    if (fs.existsSync(cacheFile)) {
-      return JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
-    }
-    const value = compute();
-    fs.writeFileSync(cacheFile, JSON.stringify(value), 'utf8');
-    return value;
+    return Profiler.run('RelayCompilerCache.getOrCompute', () => {
+      const cacheFile = path.join(this._dir, key);
+      if (fs.existsSync(cacheFile)) {
+        return JSON.parse(fs.readFileSync(cacheFile, 'utf8'));
+      }
+      const value = compute();
+      fs.writeFileSync(cacheFile, JSON.stringify(value), 'utf8');
+      return value;
+    });
   }
 }
 

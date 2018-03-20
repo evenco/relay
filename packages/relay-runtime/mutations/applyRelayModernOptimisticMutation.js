@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule applyRelayModernOptimisticMutation
  * @flow
@@ -13,18 +11,18 @@
 
 'use strict';
 
+const RelayDeclarativeMutationConfig = require('RelayDeclarativeMutationConfig');
+
 const invariant = require('invariant');
 const isRelayModernEnvironment = require('isRelayModernEnvironment');
-const setRelayModernMutationConfigs = require('setRelayModernMutationConfigs');
 
-import type {Disposable} from 'RelayCombinedEnvironmentTypes';
+import type {Disposable, Variables} from '../util/RelayRuntimeTypes';
+import type {DeclarativeMutationConfig} from 'RelayDeclarativeMutationConfig';
 import type {GraphQLTaggedNode} from 'RelayModernGraphQLTag';
 import type {Environment, SelectorStoreUpdater} from 'RelayStoreTypes';
-import type {RelayMutationConfig} from 'RelayTypes';
-import type {Variables} from 'RelayTypes';
 
 export type OptimisticMutationConfig = {|
-  configs?: ?Array<RelayMutationConfig>,
+  configs?: ?Array<DeclarativeMutationConfig>,
   mutation: GraphQLTaggedNode,
   variables: Variables,
   optimisticUpdater?: ?SelectorStoreUpdater,
@@ -44,13 +42,16 @@ function applyRelayModernOptimisticMutation(
     'commitRelayModernMutation: expect `environment` to be an instance of ' +
       '`RelayModernEnvironment`.',
   );
-  const {createOperationSelector, getOperation} = environment.unstable_internal;
-  const mutation = getOperation(config.mutation);
+  const {createOperationSelector, getRequest} = environment.unstable_internal;
+  const mutation = getRequest(config.mutation);
+  if (mutation.operationKind !== 'mutation') {
+    throw new Error('commitRelayModernMutation: Expected mutation operation');
+  }
   let {optimisticUpdater} = config;
   const {configs, optimisticResponse, variables} = config;
   const operation = createOperationSelector(mutation, variables);
   if (configs) {
-    ({optimisticUpdater} = setRelayModernMutationConfigs(
+    ({optimisticUpdater} = RelayDeclarativeMutationConfig.convert(
       configs,
       mutation,
       optimisticUpdater,

@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayApplyFragmentArgumentTransform
  * @flow
@@ -13,26 +11,30 @@
 
 'use strict';
 
-const Map = require('Map');
-const RelayCompilerContext = require('RelayCompilerContext');
-const RelayCompilerScope = require('RelayCompilerScope');
+const RelayCompilerScope = require('../core/RelayCompilerScope');
 
-const getIdentifierForRelayArgumentValue = require('getIdentifierForRelayArgumentValue');
 const invariant = require('invariant');
 const murmurHash = require('murmurHash');
 
-import type {Scope} from 'RelayCompilerScope';
+const {
+  getIdentifierForArgumentValue,
+  IRTransformer,
+} = require('graphql-compiler');
+
+import type {Scope} from '../core/RelayCompilerScope';
 import type {
   Argument,
   ArgumentValue,
   Condition,
+  CompilerContext,
+  DeferrableFragmentSpread,
   Directive,
   Field,
   Fragment,
   FragmentSpread,
   Node,
   Selection,
-} from 'RelayIR';
+} from 'graphql-compiler';
 
 const {getFragmentScope, getRootScope} = RelayCompilerScope;
 
@@ -58,30 +60,28 @@ const {getFragmentScope, getRootScope} = RelayCompilerScope;
  *
  * Note that unreferenced fragments are not added to the output.
  */
-function transform(context: RelayCompilerContext): RelayCompilerContext {
-  const documents = context.documents();
+function relayApplyFragmentArgumentTransform(
+  context: CompilerContext,
+): CompilerContext {
   const fragments: Map<string, ?Fragment> = new Map();
-  let nextContext = new RelayCompilerContext(context.schema);
-  nextContext = documents.reduce((ctx: RelayCompilerContext, node) => {
-    if (node.kind === 'Root') {
+  const nextContext = IRTransformer.transform(context, {
+    Root: node => {
       const scope = getRootScope(node.argumentDefinitions);
-      const transformedNode = transformNode(context, fragments, scope, node);
-      return transformedNode ? ctx.add(transformedNode) : ctx;
-    } else {
-      // fragments are transformed when referenced; unreferenced fragments are
-      // not added to the output.
-      return ctx;
-    }
-  }, nextContext);
+      return transformNode(context, fragments, scope, node);
+    },
+    // Fragments are included below where referenced.
+    // Unreferenced fragments are not included.
+    Fragment: () => null,
+  });
+
   return (Array.from(fragments.values()): Array<?Fragment>).reduce(
-    (ctx: RelayCompilerContext, fragment) =>
-      fragment ? ctx.add(fragment) : ctx,
+    (ctx: CompilerContext, fragment) => (fragment ? ctx.add(fragment) : ctx),
     nextContext,
   );
 }
 
 function transformNode<T: Node>(
-  context: RelayCompilerContext,
+  context: CompilerContext,
   fragments: Map<string, ?Fragment>,
   scope: Scope,
   node: T,
@@ -114,7 +114,7 @@ function transformNode<T: Node>(
 }
 
 function transformFragmentSpread(
-  context: RelayCompilerContext,
+  context: CompilerContext,
   fragments: Map<string, ?Fragment>,
   scope: Scope,
   spread: FragmentSpread,
@@ -139,8 +139,34 @@ function transformFragmentSpread(
   };
 }
 
+function transformDeferrableFragmentSpread(
+  context: CompilerContext,
+  fragments: Map<string, ?Fragment>,
+  scope: Scope,
+  spread: DeferrableFragmentSpread,
+): ?DeferrableFragmentSpread {
+  const directives = transformDirectives(scope, spread.directives);
+  const fragment = context.getFragment(spread.name);
+  const appliedFragment = transformFragment(
+    context,
+    fragments,
+    scope,
+    fragment,
+    spread.fragmentArgs,
+  );
+  if (!appliedFragment) {
+    return null;
+  }
+  return {
+    ...spread,
+    fragmentArgs: [],
+    directives,
+    name: appliedFragment.name,
+  };
+}
+
 function transformField<T: Field>(
-  context: RelayCompilerContext,
+  context: CompilerContext,
   fragments: Map<string, ?Fragment>,
   scope: Scope,
   field: T,
@@ -174,7 +200,7 @@ function transformField<T: Field>(
 }
 
 function transformCondition(
-  context: RelayCompilerContext,
+  context: CompilerContext,
   fragments: Map<string, ?Fragment>,
   scope: Scope,
   node: Condition,
@@ -214,7 +240,7 @@ function transformCondition(
 }
 
 function transformSelections(
-  context: RelayCompilerContext,
+  context: CompilerContext,
   fragments: Map<string, ?Fragment>,
   scope: Scope,
   selections: Array<Selection>,
@@ -226,6 +252,13 @@ function transformSelections(
       nextSelection = transformNode(context, fragments, scope, selection);
     } else if (selection.kind === 'FragmentSpread') {
       nextSelection = transformFragmentSpread(
+        context,
+        fragments,
+        scope,
+        selection,
+      );
+    } else if (selection.kind === 'DeferrableFragmentSpread') {
+      nextSelection = transformDeferrableFragmentSpread(
         context,
         fragments,
         scope,
@@ -307,7 +340,7 @@ function transformValue(scope: Scope, value: ArgumentValue): ArgumentValue {
  * with all values recursively applied.
  */
 function transformFragment(
-  context: RelayCompilerContext,
+  context: CompilerContext,
   fragments: Map<string, ?Fragment>,
   parentScope: Scope,
   fragment: Fragment,
@@ -374,11 +407,13 @@ function hashArguments(args: Array<Argument>, scope: Scope): ?string {
       }
       return {
         name: arg.name,
-        value: getIdentifierForRelayArgumentValue(value),
+        value: getIdentifierForArgumentValue(value),
       };
     }),
   );
   return murmurHash(printedArgs);
 }
 
-module.exports = {transform};
+module.exports = {
+  transform: relayApplyFragmentArgumentTransform,
+};

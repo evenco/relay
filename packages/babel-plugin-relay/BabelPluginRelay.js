@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule BabelPluginRelay
  * @flow
@@ -20,16 +18,25 @@ const getValidGraphQLTag = require('./getValidGraphQLTag');
 const getValidRelayQLTag = require('./getValidRelayQLTag');
 const invariant = require('./invariant');
 
+import type {Validator} from './RelayQLTransformer';
 import typeof BabelTypes from 'babel-types';
 
-import type {Validator} from './RelayQLTransformer';
-
 export type RelayPluginOptions = {
-  schema?: string,
-  compat?: boolean,
+  // The command to run to compile Relay files, used for error messages.
+  buildCommand?: string,
+
+  // Use haste style global requires, defaults to false.
   haste?: boolean,
+
+  // Enable compat mode compiling for modern and classic runtime.
+  compat?: boolean,
+
+  // Check this global variable before validation.
+  isDevVariable?: string,
+
   // Classic options
   inputArgumentName?: string,
+  schema?: string,
   snakeCase?: boolean,
   substituteVariables?: boolean,
   validator?: Validator<any>,

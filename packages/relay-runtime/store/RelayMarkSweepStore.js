@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayMarkSweepStore
  * @flow
@@ -26,7 +24,7 @@ const resolveImmediate = require('resolveImmediate');
 
 const {UNPUBLISH_RECORD_SENTINEL} = require('RelayStoreUtils');
 
-import type {Disposable} from 'RelayCombinedEnvironmentTypes';
+import type {Disposable} from '../util/RelayRuntimeTypes';
 import type {
   MutableRecordSource,
   RecordSource,
@@ -54,6 +52,7 @@ type Subscription = {
  * is also enforced in development mode by freezing all records passed to a store.
  */
 class RelayMarkSweepStore implements Store {
+  _gcEnabled: boolean;
   _hasScheduledGC: boolean;
   _index: number;
   _recordSource: MutableRecordSource;
@@ -72,6 +71,7 @@ class RelayMarkSweepStore implements Store {
         }
       }
     }
+    this._gcEnabled = true;
     this._hasScheduledGC = false;
     this._index = 0;
     this._recordSource = source;
@@ -134,6 +134,11 @@ class RelayMarkSweepStore implements Store {
     return {dispose};
   }
 
+  // Internal API
+  __getUpdatedRecordIDs(): UpdatedRecords {
+    return this._updatedRecordIDs;
+  }
+
   _updateSubscription(subscription: Subscription): void {
     const {callback, snapshot} = subscription;
     if (!hasOverlappingIDs(snapshot, this._updatedRecordIDs)) {
@@ -156,7 +161,7 @@ class RelayMarkSweepStore implements Store {
   }
 
   _scheduleGC() {
-    if (this._hasScheduledGC) {
+    if (!this._gcEnabled || this._hasScheduledGC) {
       return;
     }
     this._hasScheduledGC = true;
@@ -185,6 +190,15 @@ class RelayMarkSweepStore implements Store {
         this._recordSource.remove(dataID);
       }
     }
+  }
+
+  // Internal hooks to enable/disable garbage collection for experimentation
+  __enableGC(): void {
+    this._gcEnabled = true;
+  }
+
+  __disableGC(): void {
+    this._gcEnabled = false;
   }
 }
 

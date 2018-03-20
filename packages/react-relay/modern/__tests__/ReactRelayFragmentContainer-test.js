@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails oncall+relay
  * @format
@@ -13,14 +11,13 @@
 'use strict';
 
 const React = require('React');
-const ReactRelayFragmentContainer = require('ReactRelayFragmentContainer');
-const ReactRelayPropTypes = require('ReactRelayPropTypes');
+const ReactRelayFragmentContainer = require('../ReactRelayFragmentContainer');
+const ReactRelayPropTypes = require('../ReactRelayPropTypes');
 const ReactTestRenderer = require('ReactTestRenderer');
 const RelayModernTestUtils = require('RelayModernTestUtils');
 
 const {createMockEnvironment} = require('RelayModernMockEnvironment');
-const {createOperationSelector} = require('RelayModernOperationSelector');
-const {ROOT_ID} = require('RelayStoreUtils');
+const {createOperationSelector, ROOT_ID} = require('RelayRuntime');
 
 describe('ReactRelayFragmentContainer', () => {
   let TestComponent;
@@ -171,7 +168,8 @@ describe('ReactRelayFragmentContainer', () => {
       bar: 1,
       foo: 'foo',
       relay: {
-        environment: jasmine.any(Object),
+        environment: environment,
+        isLoading: false,
       },
       user: null,
     });
@@ -189,7 +187,8 @@ describe('ReactRelayFragmentContainer', () => {
     expect(render.mock.calls.length).toBe(1);
     expect(render.mock.calls[0][0]).toEqual({
       relay: {
-        environment: jasmine.any(Object),
+        environment: environment,
+        isLoading: false,
       },
       user: null,
     });
@@ -213,7 +212,8 @@ describe('ReactRelayFragmentContainer', () => {
     expect(render.mock.calls.length).toBe(1);
     expect(render.mock.calls[0][0]).toEqual({
       relay: {
-        environment: jasmine.any(Object),
+        environment: environment,
+        isLoading: false,
       },
       user: {
         id: '4',
@@ -269,7 +269,8 @@ describe('ReactRelayFragmentContainer', () => {
     expect(render.mock.calls.length).toBe(1);
     expect(render.mock.calls[0][0]).toEqual({
       relay: {
-        environment: jasmine.any(Object),
+        environment: environment,
+        isLoading: false,
       },
       user: {
         id: '4',
@@ -306,7 +307,8 @@ describe('ReactRelayFragmentContainer', () => {
     expect(render.mock.calls.length).toBe(1);
     expect(render.mock.calls[0][0]).toEqual({
       relay: {
-        environment: jasmine.any(Object),
+        environment: environment,
+        isLoading: false,
       },
       user: {
         id: '842472',
@@ -342,15 +344,18 @@ describe('ReactRelayFragmentContainer', () => {
     environment.lookup.mockClear();
     environment.subscribe.mockClear();
 
-    // Update the variables in context
-    const newVariables = {id: '6'};
-    instance.getInstance().setContext(environment, newVariables);
+    // Update the variables in context.
+    // Context object should be mutated (for compat with gDSFP).
+    const context = instance.getInstance().getChildContext();
+    context.relay.variables = {id: '6'};
+    instance.getInstance().setProps({});
 
     // New data & variables are passed to component
     expect(render.mock.calls.length).toBe(1);
     expect(render.mock.calls[0][0]).toEqual({
       relay: {
-        environment: jasmine.any(Object),
+        environment: environment,
+        isLoading: false,
       },
       user: {
         id: '4',
@@ -561,5 +566,30 @@ describe('ReactRelayFragmentContainer', () => {
     expect(componentRef.instanceMethod('foo')).toEqual('foofoo');
 
     expect(() => containerRef.instanceMethod('foo')).toThrow();
+  });
+
+  it('can be unwrapped in tests', () => {
+    class TestUnwrapping extends React.Component {
+      render() {
+        return <div>Unwrapped</div>;
+      }
+    }
+
+    const TestUnwrappingContainer = ReactRelayFragmentContainer.createContainer(
+      TestUnwrapping,
+      {
+        user: () => UserFragment,
+      },
+    );
+
+    const UnwrappedComponent = RelayModernTestUtils.unwrapContainer(
+      TestUnwrappingContainer,
+    );
+
+    const renderer = ReactTestRenderer.create(
+      <UnwrappedComponent user={{id: '4', name: 'Mark'}} />,
+    );
+
+    expect(renderer.toJSON()).toMatchSnapshot();
   });
 });

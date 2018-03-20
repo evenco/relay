@@ -1,11 +1,11 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
+ *
+ * @format
  */
 
 'use strict';
@@ -18,16 +18,15 @@ const createCacheKeyFunction = require('fbjs-scripts/jest/createCacheKeyFunction
 const getBabelOptions = require('../getBabelOptions');
 const path = require('path');
 
-const SCHEMA_PATH = path.resolve(
-  __dirname,
-  '../../packages/relay-compiler/testutils/testschema.graphql'
-);
+const {testSchemaPath} = require('../../dist/relay-test-utils');
 
 const babelOptions = getBabelOptions({
   env: 'test',
   // Tests use a Promise polfill so they can use jest.runAllTimers().
   autoImport: true,
   moduleMap: {
+    // TODO(T25740028) once we're fully on babylon 7, we can remove this hack.
+    'metro-babylon7': 'babylon',
     immutable: 'immutable',
     React: 'react',
     reactComponentExpect: 'react-dom/lib/reactComponentExpect',
@@ -35,7 +34,6 @@ const babelOptions = getBabelOptions({
     ReactDOMServer: 'react-dom/server',
     ReactTestRenderer: 'react-test-renderer',
     ReactTestUtils: 'react-dom/test-utils',
-    'StaticContainer.react': 'react-static-container'
   },
   plugins: [
     [
@@ -44,29 +42,31 @@ const babelOptions = getBabelOptions({
         compat: true,
         haste: true,
         substituteVariables: true,
-        schema: SCHEMA_PATH
-      }
+        schema: testSchemaPath,
+      },
     ],
-    require('babel-plugin-transform-async-to-generator')
-  ]
+    require('babel-plugin-transform-async-to-generator'),
+  ],
 });
 
 module.exports = {
   process: function(src, filename) {
     const options = assign({}, babelOptions, {
       filename: filename,
-      retainLines: true
+      retainLines: true,
     });
     return babel.transform(src, options).code;
   },
 
   getCacheKey: createCacheKeyFunction([
     __filename,
-    SCHEMA_PATH,
+    testSchemaPath,
+    // We cannot have trailing commas in this file for node < 8
+    // prettier-ignore
     path.join(
       path.dirname(require.resolve('babel-preset-fbjs')),
       'package.json'
     ),
-    path.join(__dirname, '..', 'getBabelOptions.js')
-  ])
+    path.join(__dirname, '..', 'getBabelOptions.js'),
+  ]),
 };

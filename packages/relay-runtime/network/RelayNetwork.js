@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayNetwork
  * @flow
@@ -17,19 +15,17 @@ const RelayObservable = require('RelayObservable');
 
 const invariant = require('invariant');
 
-const {convertFetch, convertSubscribe} = require('ConvertToObserveFunction');
+const {convertFetch, convertSubscribe} = require('ConvertToExecuteFunction');
 
-import type {CacheConfig} from 'RelayCombinedEnvironmentTypes';
-import type {ConcreteBatch} from 'RelayConcreteNode';
+import type {CacheConfig, Variables} from '../util/RelayRuntimeTypes';
+import type {RequestNode} from 'RelayConcreteNode';
 import type {
   FetchFunction,
   Network,
-  QueryPayload,
+  ExecutePayload,
   SubscribeFunction,
   UploadableMap,
 } from 'RelayNetworkTypes';
-import type {Observer} from 'RelayStoreTypes';
-import type {Variables} from 'RelayTypes';
 
 /**
  * Creates an implementation of the `Network` interface defined in
@@ -45,13 +41,13 @@ function create(
     ? convertSubscribe(subscribeFn)
     : undefined;
 
-  function observe(
-    operation: ConcreteBatch,
+  function execute(
+    request: RequestNode,
     variables: Variables,
     cacheConfig: CacheConfig,
     uploadables?: ?UploadableMap,
-  ): RelayObservable<QueryPayload> {
-    if (operation.query.operation === 'subscription') {
+  ): RelayObservable<ExecutePayload> {
+    if (request.operationKind === 'subscription') {
       invariant(
         observeSubscribe,
         'RelayNetwork: This network layer does not support Subscriptions. ' +
@@ -62,7 +58,7 @@ function create(
         !uploadables,
         'RelayNetwork: Cannot provide uploadables while subscribing.',
       );
-      return observeSubscribe(operation, variables, cacheConfig);
+      return observeSubscribe(request, variables, cacheConfig);
     }
 
     const pollInterval = cacheConfig.poll;
@@ -71,15 +67,13 @@ function create(
         !uploadables,
         'RelayNetwork: Cannot provide uploadables while polling.',
       );
-      return observeFetch(operation, variables, {force: true}).poll(
-        pollInterval,
-      );
+      return observeFetch(request, variables, {force: true}).poll(pollInterval);
     }
 
-    return observeFetch(operation, variables, cacheConfig, uploadables);
+    return observeFetch(request, variables, cacheConfig, uploadables);
   }
 
-  return {observe};
+  return {execute};
 }
 
 module.exports = {create};

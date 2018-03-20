@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @emails oncall+relay
  * @format
@@ -12,18 +10,18 @@
 
 'use strict';
 
-jest.enableAutomock();
+jest.mock('../../legacy/store/GraphQLRange');
 
 require('configureForRelayOSS');
 
-const GraphQLRange = require('GraphQLRange');
-const RelayClassic = require('RelayClassic');
-const RelayQuery = require('RelayQuery');
-const RelayQueryPath = require('RelayQueryPath');
-const RelayRecordStore = require('RelayRecordStore');
+const GraphQLRange = require('../../legacy/store/GraphQLRange');
+const RelayClassic = require('../../RelayPublic');
+const RelayQuery = require('../../query/RelayQuery');
+const RelayQueryPath = require('../../query/RelayQueryPath');
+const RelayRecordStore = require('../../store/RelayRecordStore');
 const RelayTestUtils = require('RelayTestUtils');
 
-const findRelayQueryLeaves = require('findRelayQueryLeaves');
+const findRelayQueryLeaves = require('../findRelayQueryLeaves');
 const mapObject = require('mapObject');
 
 const {ConnectionInterface} = require('RelayRuntime');

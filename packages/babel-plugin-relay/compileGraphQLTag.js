@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule compileGraphQLTag
  * @flow
@@ -18,9 +16,8 @@ const createCompatNode = require('./createCompatNode');
 const createModernNode = require('./createModernNode');
 const getFragmentNameParts = require('./getFragmentNameParts');
 
-import typeof BabelTypes from 'babel-types';
-
 import type {BabelState} from './BabelPluginRelay';
+import typeof BabelTypes from 'babel-types';
 import type {DocumentNode} from 'graphql';
 
 /**
@@ -87,8 +84,20 @@ function compileGraphQLTag(
 function createAST(t, state, path, graphqlDefinition) {
   const isCompatMode = Boolean(state.opts && state.opts.compat);
   const isHasteMode = Boolean(state.opts && state.opts.haste);
+  const isDevVariable = state.opts && state.opts.isDevVariable;
+  const buildCommand =
+    (state.opts && state.opts.buildCommand) || 'relay-compiler';
 
-  const modernNode = createModernNode(t, graphqlDefinition, isHasteMode);
+  // Fallback is 'true'
+  const isDevelopment =
+    (process.env.BABEL_ENV || process.env.NODE_ENV) !== 'production';
+
+  const modernNode = createModernNode(t, graphqlDefinition, {
+    buildCommand,
+    isDevelopment,
+    isHasteMode,
+    isDevVariable,
+  });
   if (isCompatMode) {
     return createCompatNode(
       t,

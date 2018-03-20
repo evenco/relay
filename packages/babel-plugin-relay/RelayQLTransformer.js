@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @flow
  * @fullSyntaxTransform
@@ -19,7 +17,6 @@ const invariant = require('./invariant');
 const util = require('util');
 
 const {
-  RelayQLDefinition,
   RelayQLFragment,
   RelayQLMutation,
   RelayQLQuery,
@@ -30,17 +27,18 @@ const {
   parse,
   Source,
   validate,
-  ArgumentsOfCorrectTypeRule,
-  DefaultValuesOfCorrectTypeRule,
   FieldsOnCorrectTypeRule,
   FragmentsOnCompositeTypesRule,
   KnownArgumentNamesRule,
   KnownTypeNamesRule,
   PossibleFragmentSpreadsRule,
+  ValuesOfCorrectTypeRule,
+  VariablesDefaultValueAllowedRule,
   VariablesInAllowedPositionRule,
   ProvidedNonNullArgumentsRule,
 } = require('graphql');
 
+import type {RelayQLDefinition} from './RelayQLAST';
 import type {Printable, Substitution} from './RelayQLPrinter';
 import type {
   DocumentNode,
@@ -255,13 +253,13 @@ class RelayQLTransformer {
       validationErrors = validator().validate(this.schema, document);
     } else {
       const rules = [
-        ArgumentsOfCorrectTypeRule,
-        DefaultValuesOfCorrectTypeRule,
         FieldsOnCorrectTypeRule,
         FragmentsOnCompositeTypesRule,
         KnownArgumentNamesRule,
         KnownTypeNamesRule,
         PossibleFragmentSpreadsRule,
+        ValuesOfCorrectTypeRule,
+        VariablesDefaultValueAllowedRule,
         VariablesInAllowedPositionRule,
       ];
       if (!isMutation) {

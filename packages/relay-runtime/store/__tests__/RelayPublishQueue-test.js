@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @format
  * @emails oncall+relay
@@ -56,7 +54,7 @@ describe('RelayPublishQueue', () => {
           log: '',
           name: 'Mark',
           pet: {[REF_KEY]: 'beast'},
-          'address{"location":"WORK"}': '1 Hacker Way',
+          'address(location:"WORK")': '1 Hacker Way',
         },
         660361306: {
           [ID_KEY]: '660361306',
@@ -597,7 +595,7 @@ describe('RelayPublishQueue', () => {
               __id: 'client:root',
               __typename: '__Root',
               me: {__ref: '4'},
-              'nodes{"ids":["4"]}': {__refs: ['4']},
+              'nodes(ids:["4"])': {__refs: ['4']},
             },
           }),
         },
@@ -621,7 +619,7 @@ describe('RelayPublishQueue', () => {
           __id: 'client:root',
           __typename: '__Root',
           me: {__ref: '4'},
-          'nodes{"ids":["4"]}': {__refs: ['4']},
+          'nodes(ids:["4"])': {__refs: ['4']},
         },
       });
       expect(notify.mock.calls.length).toBe(1);

@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayRelayDirectiveTransform
  * @flow
@@ -13,17 +11,22 @@
 
 'use strict';
 
-const RelayCompilerContext = require('../graphql-compiler/core/RelayCompilerContext');
-const RelayIRTransformer = require('../graphql-compiler/core/RelayIRTransformer');
-
-const getRelayLiteralArgumentValues = require('../graphql-compiler/core/getRelayLiteralArgumentValues');
 const invariant = require('invariant');
 
-import type {Fragment} from '../graphql-compiler/core/RelayIR';
+const {
+  CompilerContext,
+  IRTransformer,
+  getLiteralArgumentValues,
+} = require('graphql-compiler');
+
+import type {Fragment, FragmentSpread} from 'graphql-compiler';
 
 const RELAY = 'relay';
-const PLURAL = 'plural';
 const SCHEMA_EXTENSION = `directive @relay(
+  # Marks this fragment spread as being deferrable such that it loads after
+  # other portions of the view.
+  deferrable: Boolean,
+
   # Marks a connection field as containing nodes without 'id' fields.
   # This is used to silence the warning when diffing connections.
   isConnectionWithoutNodeID: Boolean,
@@ -46,43 +49,68 @@ const SCHEMA_EXTENSION = `directive @relay(
  * A transform that extracts `@relay(plural: Boolean)` directives and converts
  * them to metadata that can be accessed at runtime.
  */
-function transform(context: RelayCompilerContext): RelayCompilerContext {
-  return RelayIRTransformer.transform(
-    context,
-    {
-      Fragment: visitFragment,
-    },
-    () => ({}), // empty state
-  );
+function relayRelayDirectiveTransform(
+  context: CompilerContext,
+): CompilerContext {
+  return IRTransformer.transform(context, {
+    Fragment: visitRelayMetadata(fragmentMetadata),
+    FragmentSpread: visitRelayMetadata(fragmentSpreadMetadata),
+  });
 }
 
-function visitFragment(fragment: Fragment): Fragment {
-  const relayDirective = fragment.directives.find(({name}) => name === RELAY);
-  if (!relayDirective) {
-    return fragment;
-  }
-  const {plural} = getRelayLiteralArgumentValues(relayDirective.args);
+type MixedObj = {[key: string]: mixed};
+function visitRelayMetadata<T: Fragment | FragmentSpread>(
+  metadataFn: MixedObj => MixedObj,
+): T => T {
+  return function(node) {
+    const relayDirective = node.directives.find(({name}) => name === RELAY);
+    if (!relayDirective) {
+      return this.traverse(node);
+    }
+    const argValues = getLiteralArgumentValues(relayDirective.args);
+    const metadata = metadataFn(argValues);
+    return this.traverse({
+      ...node,
+      directives: node.directives.filter(
+        directive => directive !== relayDirective,
+      ),
+      metadata: {
+        ...(node.metadata || {}),
+        ...metadata,
+      },
+    });
+  };
+}
+
+function fragmentMetadata({plural}): MixedObj {
   invariant(
     plural === undefined || typeof plural === 'boolean',
-    'RelayRelayDirectiveTransform: Expected the %s argument to @%s to be ' +
-      'a boolean literal or not specified.',
-    PLURAL,
-    RELAY,
+    'RelayRelayDirectiveTransform: Expected the "plural" argument to @relay ' +
+      'to be a boolean literal if specified.',
   );
-  return {
-    ...fragment,
-    directives: fragment.directives.filter(
-      directive => directive !== relayDirective,
-    ),
-    metadata: {
-      ...(fragment.metadata || {}),
-      plural,
-    },
-  };
+  return {plural};
+}
+
+function fragmentSpreadMetadata({mask, deferrable}): MixedObj {
+  invariant(
+    mask === undefined || typeof mask === 'boolean',
+    'RelayRelayDirectiveTransform: Expected the "mask" argument to @relay ' +
+      'to be a boolean literal if specified.',
+  );
+  invariant(
+    deferrable === undefined || typeof deferrable === 'boolean',
+    'RelayRelayDirectiveTransform: Expected the "deferrable" argument to ' +
+      '@relay to be a boolean literal if specified.',
+  );
+  invariant(
+    !(deferrable === true && mask === false),
+    'RelayRelayDirectiveTransform: Cannot unmask a deferrable fragment spread.',
+  );
+  return {mask, deferrable};
 }
 
 module.exports = {
   RELAY,
   SCHEMA_EXTENSION,
-  transform,
+  transform: relayRelayDirectiveTransform,
 };

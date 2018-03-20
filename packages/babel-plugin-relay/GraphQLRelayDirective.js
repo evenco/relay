@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @flow
  * @fullSyntaxTransform
@@ -18,6 +16,10 @@ const {buildSchema} = require('graphql');
 // Copy of RelayRelayDirectiveTransform.SCHEMA_EXTENSION due to the build
 // systems.
 const SCHEMA_EXTENSION = `directive @relay(
+  # Marks this fragment spread as being deferrable such that it loads after
+  # other portions of the view.
+  deferrable: Boolean,
+
   # Marks a connection field as containing nodes without 'id' fields.
   # This is used to silence the warning when diffing connections.
   isConnectionWithoutNodeID: Boolean,

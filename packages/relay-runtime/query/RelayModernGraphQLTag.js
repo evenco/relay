@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayModernGraphQLTag
  * @flow
@@ -13,21 +11,22 @@
 
 'use strict';
 
+const RelayConcreteNode = require('RelayConcreteNode');
+
 const invariant = require('invariant');
 
-import typeof RelayQL from 'RelayQL';
-
+import type {ConcreteFragment, RequestNode} from 'RelayConcreteNode';
 import type {
   ConcreteFragmentDefinition,
   ConcreteOperationDefinition,
-} from 'ConcreteQuery';
-import type {ConcreteBatch, ConcreteFragment} from 'RelayConcreteNode';
+} from 'react-relay/classic/query/ConcreteQuery';
+import typeof RelayQL from 'react-relay/classic/query/RelayQL';
 
 // The type of a graphql`...` tagged template expression.
 export type GraphQLTaggedNode =
-  | (() => ConcreteFragment | ConcreteBatch)
+  | (() => ConcreteFragment | RequestNode)
   | {
-      modern: () => ConcreteFragment | ConcreteBatch,
+      modern: () => ConcreteFragment | RequestNode,
       classic: RelayQL =>
         | ConcreteFragmentDefinition
         | ConcreteOperationDefinition,
@@ -46,18 +45,6 @@ function graphql(strings: Array<string>): GraphQLTaggedNode {
   );
 }
 
-/**
- * Variant of the `graphql` tag that enables experimental features.
- */
-graphql.experimental = function(strings: Array<string>): GraphQLTaggedNode {
-  invariant(
-    false,
-    'graphql.experimental: Unexpected invocation at runtime. Either the ' +
-      'Babel transform was not set up, or it failed to identify this call ' +
-      'site. Make sure it is being used verbatim as `graphql`.',
-  );
-};
-
 function getNode(taggedNode) {
   const fn = typeof taggedNode === 'function' ? taggedNode : taggedNode.modern;
   // Support for classic raw nodes (used in test mock)
@@ -72,27 +59,28 @@ function getFragment(taggedNode: GraphQLTaggedNode): ConcreteFragment {
   invariant(
     typeof fragment === 'object' &&
       fragment !== null &&
-      fragment.kind === 'Fragment',
+      fragment.kind === RelayConcreteNode.FRAGMENT,
     'RelayModernGraphQLTag: Expected a fragment, got `%s`.',
     JSON.stringify(fragment),
   );
   return (fragment: any);
 }
 
-function getOperation(taggedNode: GraphQLTaggedNode): ConcreteBatch {
-  const operation = getNode(taggedNode);
+function getRequest(taggedNode: GraphQLTaggedNode): RequestNode {
+  const request = getNode(taggedNode);
   invariant(
-    typeof operation === 'object' &&
-      operation !== null &&
-      operation.kind === 'Batch',
-    'RelayModernGraphQLTag: Expected an operation, got `%s`.',
-    JSON.stringify(operation),
+    typeof request === 'object' &&
+      request !== null &&
+      (request.kind === RelayConcreteNode.REQUEST ||
+        request.kind === RelayConcreteNode.BATCH_REQUEST),
+    'RelayModernGraphQLTag: Expected an request, got `%s`.',
+    JSON.stringify(request),
   );
-  return (operation: any);
+  return (request: any);
 }
 
 module.exports = {
   getFragment,
-  getOperation,
+  getRequest,
   graphql,
 };

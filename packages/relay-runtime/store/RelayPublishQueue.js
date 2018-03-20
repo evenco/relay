@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @flow
  * @providesModule RelayPublishQueue
@@ -22,9 +20,7 @@ const RelayRecordSourceSelectorProxy = require('RelayRecordSourceSelectorProxy')
 const invariant = require('invariant');
 const normalizeRelayPayload = require('normalizeRelayPayload');
 
-import type {SelectorData} from 'RelayCombinedEnvironmentTypes';
 import type {HandlerProvider} from 'RelayDefaultHandlerProvider';
-import type {RelayResponsePayload} from 'RelayNetworkTypes';
 import type {
   HandleFieldPayload,
   MutableRecordSource,
@@ -34,7 +30,9 @@ import type {
   Store,
   StoreUpdater,
   RecordSource,
+  RelayResponsePayload,
 } from 'RelayStoreTypes';
+import type {SelectorData} from 'react-relay/classic/environment/RelayCombinedEnvironmentTypes';
 
 type Payload = {
   fieldPayloads: ?Array<HandleFieldPayload>,
@@ -275,9 +273,12 @@ class RelayPublishQueue {
             }
             selectorStoreUpdater &&
               selectorStoreUpdater(selectorStore, selectorData);
-          } else {
+          } else if (optimisticUpdate.storeUpdater) {
             const {storeUpdater} = optimisticUpdate;
             storeUpdater(store);
+          } else {
+            const {source, fieldPayloads} = optimisticUpdate;
+            store.publishSource(source, fieldPayloads);
           }
         });
       }
@@ -300,9 +301,12 @@ class RelayPublishQueue {
             }
             selectorStoreUpdater &&
               selectorStoreUpdater(selectorStore, selectorData);
-          } else {
+          } else if (optimisticUpdate.storeUpdater) {
             const {storeUpdater} = optimisticUpdate;
             storeUpdater(store);
+          } else {
+            const {source, fieldPayloads} = optimisticUpdate;
+            store.publishSource(source, fieldPayloads);
           }
           this._appliedOptimisticUpdates.add(optimisticUpdate);
         });

@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule nullthrowsOSS
  * @flow
@@ -12,11 +10,16 @@
  */
 'use strict';
 
-var nullthrows = function<T>(x: ?T): T {
+var nullthrows = function<T>(
+  x: ?T,
+  message?: string = 'Got unexpected null or undefined',
+): T {
   if (x != null) {
     return x;
   }
-  throw new Error('Got unexpected null or undefined');
+  var error = new Error(message);
+  (error: any).framesToPop = 1; // Skip nullthrows own stack frame.
+  throw error;
 };
 
 module.exports = nullthrows;

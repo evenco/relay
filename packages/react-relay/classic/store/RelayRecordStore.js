@@ -1,22 +1,19 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule RelayRecordStore
  * @flow
  * @format
  */
 
 'use strict';
 
-const GraphQLRange = require('GraphQLRange');
-const RelayClassicRecordState = require('RelayClassicRecordState');
-const RelayNodeInterface = require('RelayNodeInterface');
-const RelayRecord = require('RelayRecord');
+const GraphQLRange = require('../legacy/store/GraphQLRange');
+const RelayClassicRecordState = require('./RelayClassicRecordState');
+const RelayNodeInterface = require('../interface/RelayNodeInterface');
+const RelayRecord = require('./RelayRecord');
 
 const forEachObject = require('forEachObject');
 const invariant = require('invariant');
@@ -24,18 +21,18 @@ const warning = require('warning');
 
 const {ConnectionInterface} = require('RelayRuntime');
 
-import type {RecordState} from 'RelayClassicRecordState';
-import type {PageInfo} from 'RelayConnectionInterface';
+import type {QueryPath} from '../query/RelayQueryPath';
 import type {
   Call,
   ClientMutationID,
-  DataID,
   FieldValue,
   NodeRangeMap,
   RootCallMap,
-} from 'RelayInternalTypes';
-import type {QueryPath} from 'RelayQueryPath';
-import type {Record, RecordMap} from 'RelayRecord';
+} from '../tools/RelayInternalTypes';
+import type {RecordState} from './RelayClassicRecordState';
+import type {Record, RecordMap} from './RelayRecord';
+import type {DataID} from 'RelayRuntime';
+import type {PageInfo} from 'RelayRuntime';
 
 type RangeEdge = {
   edgeID: string,
@@ -285,7 +282,7 @@ class RelayRecordStore {
     let connectionIDs;
     forEachObject(record, (datum, key) => {
       if (datum && getFieldNameFromKey(key) === schemaName) {
-        // $FlowFixMe: datum isn't guaranteed to be an object.
+        // $FlowFixMe(site=www,mobile) forEachObject is only typed in www
         const connectionID = RelayRecord.getDataIDForObject(datum);
         if (connectionID) {
           connectionIDs = connectionIDs || [];

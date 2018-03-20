@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @flow
  * @providesModule SkipClientFieldTransform
@@ -13,8 +11,8 @@
 
 'use strict';
 
-const RelayCompilerContext = require('../core/RelayCompilerContext');
-const RelayIRTransformer = require('../core/RelayIRTransformer');
+const GraphQLCompilerContext = require('../core/GraphQLCompilerContext');
+const GraphQLIRTransformer = require('../core/GraphQLIRTransformer');
 
 const invariant = require('invariant');
 
@@ -35,17 +33,12 @@ import type {
   FragmentSpread,
   InlineFragment,
   Root,
-} from '../core/RelayIR';
-import type {GraphQLSchema, GraphQLType} from 'graphql';
-
-type State = {
-  schema: GraphQLSchema,
-  parentType: GraphQLType,
-};
+} from '../core/GraphQLIR';
+import type {GraphQLType} from 'graphql';
 
 /**
  * A transform that removes any selections that are not valid relative to the
- * given schema. The primary use case is for fields added via client
+ * server schema. The primary use case is for fields added via client
  * `extend type ...` definitions and for inline fragments / fragment spreads
  * whose types are added with client `type ...` type extensions.
  *
@@ -94,11 +87,10 @@ type State = {
  * type, and (2) is removed because the `ClientType` type does not exist in the
  * base schema.
  */
-function transform(
-  context: RelayCompilerContext,
-  schema: GraphQLSchema,
-): RelayCompilerContext {
-  return RelayIRTransformer.transform(
+function skipClientFieldTransform(
+  context: GraphQLCompilerContext,
+): GraphQLCompilerContext {
+  return GraphQLIRTransformer.transform(
     context,
     {
       FragmentSpread: visitFragmentSpread,
@@ -106,7 +98,7 @@ function transform(
       LinkedField: visitField,
       ScalarField: visitField,
     },
-    buildState.bind(null, schema),
+    node => buildState(context, node),
   );
 }
 
@@ -114,33 +106,25 @@ function transform(
  * @internal
  *
  * Build the initial state, returning null for fragments whose type is not
- * defined in the original schema.
+ * defined in the server schema.
  */
-function buildState(schema: GraphQLSchema, node: Fragment | Root): ?State {
-  let parentType;
+function buildState(
+  context: GraphQLCompilerContext,
+  node: Fragment | Root,
+): ?GraphQLType {
+  const schema = context.serverSchema;
   if (node.kind === 'Fragment') {
-    parentType = schema.getType(node.type.name);
-  } else {
-    switch (node.operation) {
-      case 'query':
-        parentType = schema.getQueryType();
-        break;
-      case 'mutation':
-        parentType = schema.getMutationType();
-        break;
-      case 'subscription':
-        parentType = schema.getSubscriptionType();
-        break;
-    }
+    return schema.getType(node.type.name);
   }
-  if (parentType) {
-    return {
-      schema,
-      parentType,
-    };
-  } else {
-    return null;
+  switch (node.operation) {
+    case 'query':
+      return schema.getQueryType();
+    case 'mutation':
+      return schema.getMutationType();
+    case 'subscription':
+      return schema.getSubscriptionType();
   }
+  return null;
 }
 
 /**
@@ -148,11 +132,11 @@ function buildState(schema: GraphQLSchema, node: Fragment | Root): ?State {
  *
  * Skip fields that were added via `extend type ...`.
  */
-function visitField<F: Field>(field: F, state: State): ?F {
+function visitField<F: Field>(field: F, parentType: GraphQLType): ?F {
   if (
     // Field is defined in the original parent type definition:
-    (canHaveSelections(state.parentType) &&
-      assertTypeWithFields(state.parentType).getFields()[field.name]) ||
+    (canHaveSelections(parentType) &&
+      assertTypeWithFields(parentType).getFields()[field.name]) ||
     // Allow metadata fields and fields defined on classic "fat" interfaces
     field.name === SchemaMetaFieldDef.name ||
     field.name === TypeMetaFieldDef.name ||
@@ -160,17 +144,14 @@ function visitField<F: Field>(field: F, state: State): ?F {
     field.directives.some(({name}) => name === 'fixme_fat_interface')
   ) {
     const rawType = getRawType(field.type);
-    const type = state.schema.getType(rawType.name);
+    const type = this.getContext().serverSchema.getType(rawType.name);
     invariant(
       type,
       'SkipClientFieldTransform: Expected type `%s` to be defined in ' +
-        'the original schema.',
+        'the server schema.',
       rawType.name,
     );
-    return this.traverse(field, {
-      ...state,
-      parentType: type,
-    });
+    return this.traverse(field, type);
   }
   return null;
 }
@@ -183,17 +164,12 @@ function visitField<F: Field>(field: F, state: State): ?F {
  */
 function visitFragmentSpread(
   spread: FragmentSpread,
-  state: State,
+  parentType: GraphQLType,
 ): ?FragmentSpread {
   const context = this.getContext();
-  const fragment = context.get(spread.name);
-  invariant(
-    fragment && fragment.kind === 'Fragment',
-    'SkipClientFieldTransform: Expected a fragment named `%s` to be defined.',
-    spread.name,
-  );
-  if (state.schema.getType(fragment.type.name)) {
-    return this.traverse(spread, state);
+  const fragment = context.getFragment(spread.name);
+  if (context.serverSchema.getType(fragment.type.name)) {
+    return this.traverse(spread, parentType);
   }
   return null;
 }
@@ -205,16 +181,16 @@ function visitFragmentSpread(
  */
 function visitInlineFragment(
   fragment: InlineFragment,
-  state: State,
+  parentType: GraphQLType,
 ): ?InlineFragment {
-  const type = state.schema.getType(fragment.typeCondition.name);
+  const schema = this.getContext().serverSchema;
+  const type = schema.getType(fragment.typeCondition.name);
   if (type) {
-    return this.traverse(fragment, {
-      ...state,
-      parentType: type,
-    });
+    return this.traverse(fragment, type);
   }
   return null;
 }
 
-module.exports = {transform};
+module.exports = {
+  transform: skipClientFieldTransform,
+};

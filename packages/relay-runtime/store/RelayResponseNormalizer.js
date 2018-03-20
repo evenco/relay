@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayResponseNormalizer
  * @flow
@@ -17,34 +15,32 @@ const RelayConcreteNode = require('RelayConcreteNode');
 const RelayModernRecord = require('RelayModernRecord');
 const RelayProfiler = require('RelayProfiler');
 
-const formatStorageKey = require('formatStorageKey');
+const deferrableFragmentKey = require('deferrableFragmentKey');
 const generateRelayClientID = require('generateRelayClientID');
-const getRelayHandleKey = require('getRelayHandleKey');
 const invariant = require('invariant');
 const warning = require('warning');
 
 const {
-  getHandleFilterValues,
   getArgumentValues,
+  getHandleStorageKey,
   getStorageKey,
   TYPENAME_KEY,
 } = require('RelayStoreUtils');
 
-import type {Record} from 'RelayCombinedEnvironmentTypes';
+import type {DataID, Variables} from '../util/RelayRuntimeTypes';
 import type {
   ConcreteField,
   ConcreteLinkedField,
   ConcreteNode,
-  ConcreteSelection,
 } from 'RelayConcreteNode';
-import type {DataID} from 'RelayInternalTypes';
 import type {PayloadData} from 'RelayNetworkTypes';
 import type {
+  DeferrableSelections,
   HandleFieldPayload,
   MutableRecordSource,
   Selector,
 } from 'RelayStoreTypes';
-import type {Variables} from 'RelayTypes';
+import type {Record} from 'react-relay/classic/environment/RelayCombinedEnvironmentTypes';
 
 const {
   CONDITION,
@@ -53,9 +49,15 @@ const {
   LINKED_HANDLE,
   SCALAR_FIELD,
   SCALAR_HANDLE,
+  DEFERRABLE_FRAGMENT_SPREAD,
 } = RelayConcreteNode;
 
 export type NormalizationOptions = {handleStrippedNulls: boolean};
+
+export type NormalizedResponse = {
+  fieldPayloads: Array<HandleFieldPayload>,
+  deferrableSelections: DeferrableSelections,
+};
 
 /**
  * Normalizes the results of a query and standard GraphQL response, writing the
@@ -69,7 +71,7 @@ function normalize(
   selector: Selector,
   response: PayloadData,
   options: NormalizationOptions = {handleStrippedNulls: false},
-): Array<HandleFieldPayload> {
+): NormalizedResponse {
   const {dataID, node, variables} = selector;
   const normalizer = new RelayResponseNormalizer(
     recordSource,
@@ -85,17 +87,17 @@ function normalize(
  * Helper for handling payloads.
  */
 class RelayResponseNormalizer {
-  _handleFieldPayloads: Array<HandleFieldPayload>;
+  _handleFieldPayloads: Array<HandleFieldPayload> = [];
   _recordSource: MutableRecordSource;
   _variables: Variables;
   _handleStrippedNulls: boolean;
+  _deferrableSelections: DeferrableSelections = new Set();
 
   constructor(
     recordSource: MutableRecordSource,
     variables: Variables,
     options: NormalizationOptions,
   ) {
-    this._handleFieldPayloads = [];
     this._recordSource = recordSource;
     this._variables = variables;
     this._handleStrippedNulls = options.handleStrippedNulls;
@@ -105,15 +107,18 @@ class RelayResponseNormalizer {
     node: ConcreteNode,
     dataID: DataID,
     data: PayloadData,
-  ): Array<HandleFieldPayload> {
+  ): NormalizedResponse {
     const record = this._recordSource.get(dataID);
     invariant(
       record,
       'RelayResponseNormalizer(): Expected root record `%s` to exist.',
       dataID,
     );
-    this._traverseSelections(node.selections, record, data);
-    return this._handleFieldPayloads;
+    this._traverseSelections(node, record, data);
+    return {
+      fieldPayloads: this._handleFieldPayloads,
+      deferrableSelections: this._deferrableSelections,
+    };
   }
 
   _getVariableValue(name: string): mixed {
@@ -136,22 +141,22 @@ class RelayResponseNormalizer {
   }
 
   _traverseSelections(
-    selections: Array<ConcreteSelection>,
+    node: ConcreteNode,
     record: Record,
     data: PayloadData,
   ): void {
-    selections.forEach(selection => {
+    node.selections.forEach(selection => {
       if (selection.kind === SCALAR_FIELD || selection.kind === LINKED_FIELD) {
-        this._normalizeField(selection, record, data);
+        this._normalizeField(node, selection, record, data);
       } else if (selection.kind === CONDITION) {
         const conditionValue = this._getVariableValue(selection.condition);
         if (conditionValue === selection.passingValue) {
-          this._traverseSelections(selection.selections, record, data);
+          this._traverseSelections(selection, record, data);
         }
       } else if (selection.kind === INLINE_FRAGMENT) {
         const typeName = RelayModernRecord.getType(record);
         if (typeName === selection.type) {
-          this._traverseSelections(selection.selections, record, data);
+          this._traverseSelections(selection, record, data);
         }
       } else if (
         selection.kind === LINKED_HANDLE ||
@@ -160,21 +165,8 @@ class RelayResponseNormalizer {
         const args = selection.args
           ? getArgumentValues(selection.args, this._variables)
           : {};
-
-        const fieldKey = formatStorageKey(selection.name, args);
-        let handleKey = getRelayHandleKey(
-          selection.handle,
-          selection.key,
-          selection.name,
-        );
-        if (selection.filters) {
-          const filterValues = getHandleFilterValues(
-            selection.args || [],
-            selection.filters,
-            this._variables,
-          );
-          handleKey = formatStorageKey(handleKey, filterValues);
-        }
+        const fieldKey = getStorageKey(selection, this._variables);
+        const handleKey = getHandleStorageKey(selection, this._variables);
         this._handleFieldPayloads.push({
           args,
           dataID: RelayModernRecord.getDataID(record),
@@ -182,6 +174,22 @@ class RelayResponseNormalizer {
           handle: selection.handle,
           handleKey,
         });
+      } else if (selection.kind === DEFERRABLE_FRAGMENT_SPREAD) {
+        const dataID = RelayModernRecord.getDataID(record);
+        const value = RelayModernRecord.getValue(record, selection.storageKey);
+        invariant(
+          typeof value === 'string',
+          'expected ID at %s',
+          selection.storageKey,
+        );
+        const variables = selection.args
+          ? getArgumentValues(selection.args, {
+              ...this._variables,
+              [selection.rootFieldVariable]: value,
+            })
+          : {};
+        const key = deferrableFragmentKey(dataID, selection.name, variables);
+        this._deferrableSelections.add(key);
       } else {
         invariant(
           false,
@@ -192,7 +200,12 @@ class RelayResponseNormalizer {
     });
   }
 
-  _normalizeField(selection: ConcreteField, record: Record, data: PayloadData) {
+  _normalizeField(
+    parent: ConcreteNode,
+    selection: ConcreteField,
+    record: Record,
+    data: PayloadData,
+  ) {
     invariant(
       typeof data === 'object' && data,
       'writeField(): Expected data for field `%s` to be an object.',
@@ -208,7 +221,9 @@ class RelayResponseNormalizer {
       }
       if (__DEV__) {
         warning(
-          data.hasOwnProperty(responseKey),
+          parent.kind === LINKED_FIELD && parent.concreteType == null
+            ? true
+            : Object.prototype.hasOwnProperty.call(data, responseKey),
           'RelayResponseNormalizer(): Payload did not contain a value ' +
             'for field `%s: %s`. Check that you are parsing with the same ' +
             'query that was used to fetch the payload.',
@@ -259,7 +274,7 @@ class RelayResponseNormalizer {
     } else if (__DEV__) {
       this._validateRecordType(nextRecord, field, fieldValue);
     }
-    this._traverseSelections(field.selections, nextRecord, fieldValue);
+    this._traverseSelections(field, nextRecord, fieldValue);
   }
 
   _normalizePluralLink(
@@ -313,7 +328,7 @@ class RelayResponseNormalizer {
       } else if (__DEV__) {
         this._validateRecordType(nextRecord, field, item);
       }
-      this._traverseSelections(field.selections, nextRecord, item);
+      this._traverseSelections(field, nextRecord, item);
     });
     RelayModernRecord.setLinkedRecordIDs(record, storageKey, nextIDs);
   }

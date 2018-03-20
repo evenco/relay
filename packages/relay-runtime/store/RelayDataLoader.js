@@ -1,10 +1,8 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
  * @providesModule RelayDataLoader
  * @flow
@@ -22,7 +20,7 @@ const invariant = require('invariant');
 
 const {EXISTENT, UNKNOWN} = require('RelayRecordState');
 
-import type {Record} from 'RelayCombinedEnvironmentTypes';
+import type {DataID, Variables} from '../util/RelayRuntimeTypes';
 import type {
   ConcreteLinkedField,
   ConcreteNode,
@@ -30,14 +28,13 @@ import type {
   ConcreteSelection,
   ConcreteField,
 } from 'RelayConcreteNode';
-import type {DataID} from 'RelayInternalTypes';
 import type {
   MissingFieldHandler,
   MutableRecordSource,
   RecordSource,
   Selector,
 } from 'RelayStoreTypes';
-import type {Variables} from 'RelayTypes';
+import type {Record} from 'react-relay/classic/environment/RelayCombinedEnvironmentTypes';
 
 const {
   CONDITION,

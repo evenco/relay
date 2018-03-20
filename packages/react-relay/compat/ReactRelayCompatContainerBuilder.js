@@ -1,32 +1,32 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule ReactRelayCompatContainerBuilder
  * @flow
  * @format
  */
 
 'use strict';
 
-const RelayContainerProxy = require('RelayContainerProxy');
-const RelayGraphQLTag = require('RelayGraphQLTag');
-const RelayPropTypes = require('RelayPropTypes');
+const RelayContainerProxy = require('../classic/container/RelayContainerProxy');
+const RelayGraphQLTag = require('../classic/query/RelayGraphQLTag');
+const RelayPropTypes = require('../classic/container/RelayPropTypes');
 
-const assertFragmentMap = require('assertFragmentMap');
+const assertFragmentMap = require('../modern/assertFragmentMap');
 const invariant = require('invariant');
 const mapObject = require('mapObject');
 
-const {getComponentName, getContainerName} = require('RelayContainerUtils');
+const {
+  getComponentName,
+  getContainerName,
+} = require('../classic/container/RelayContainerUtils');
 
-import type {ConcreteFragmentSpread} from 'ConcreteQuery';
-import type {GeneratedNodeMap} from 'ReactRelayTypes';
-import type {VariableMapping} from 'RelayFragmentReference';
-import type {Variables} from 'RelayTypes';
+import type {ConcreteFragmentSpread} from '../classic/query/ConcreteQuery';
+import type {VariableMapping} from '../classic/query/RelayFragmentReference';
+import type {GeneratedNodeMap} from '../modern/ReactRelayTypes';
+import type {Variables} from 'RelayRuntime';
 
 const containerContextTypes = {
   relay: RelayPropTypes.Relay,
@@ -68,11 +68,11 @@ function injectDefaultVariablesProvider(variablesProvider: VariablesProvider) {
  * container definitions or unwrapping the environment-specific fragment
  * defintions unnecessarily.
  */
-function buildCompatContainer<TBase: React$ComponentType<*>>(
-  ComponentClass: TBase,
+function buildCompatContainer(
+  ComponentClass: React$ComponentType<any>,
   fragmentSpec: GeneratedNodeMap,
   createContainerWithFragments: ContainerCreator,
-): TBase {
+): any {
   // Sanity-check user-defined fragment input
   const containerName = getContainerName(ComponentClass);
   assertFragmentMap(getComponentName(ComponentClass), fragmentSpec);
@@ -135,6 +135,10 @@ function buildCompatContainer<TBase: React$ComponentType<*>>(
       const {getFragment: getFragmentFromTag} = environment.unstable_internal;
       const fragments = mapObject(fragmentSpec, getFragmentFromTag);
       Container = createContainerWithFragments(ComponentClass, fragments);
+
+      // Attach static lifecycle to wrapper component so React can see it.
+      ContainerConstructor.getDerivedStateFromProps = (Container: any).getDerivedStateFromProps;
+
       RelayContainerProxy.proxyMethods(Container, ComponentClass);
     }
     /* $FlowFixMe(>=0.53.0) This comment suppresses an
@@ -154,13 +158,9 @@ function buildCompatContainer<TBase: React$ComponentType<*>>(
 
   // Create a back-reference from the Component to the Container for cases
   // where a Classic Component might refer to itself, expecting a Container.
-  /* $FlowFixMe(>=0.53.0) This comment suppresses an error
-   * when upgrading Flow's support for React. Common errors found when
-   * upgrading Flow's React support are documented at
-   * https://fburl.com/eq7bs81w */
-  ComponentClass.__container__ = ContainerConstructor;
+  (ComponentClass: any).__container__ = ContainerConstructor;
 
-  return (ContainerConstructor: any);
+  return ContainerConstructor;
 }
 
 module.exports = {injectDefaultVariablesProvider, buildCompatContainer};

@@ -1,12 +1,9 @@
 /**
  * Copyright (c) 2013-present, Facebook, Inc.
- * All rights reserved.
  *
- * This source code is licensed under the BSD-style license found in the
- * LICENSE file in the root directory of this source tree. An additional grant
- * of patent rights can be found in the PATENTS file in the same directory.
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
  *
- * @providesModule RelayReadyStateRenderer
  * @flow
  * @format
  */
@@ -14,24 +11,24 @@
 'use strict';
 
 const React = require('React');
-const RelayFragmentPointer = require('RelayFragmentPointer');
-const RelayPropTypes = require('RelayPropTypes');
-const StaticContainer = require('StaticContainer.react');
+const RelayFragmentPointer = require('../query/RelayFragmentPointer');
+const RelayPropTypes = require('./RelayPropTypes');
+const RelayStaticContainer = require('./RelayStaticContainer');
 
-const getRelayQueries = require('getRelayQueries');
+const getRelayQueries = require('./getRelayQueries');
 const mapObject = require('mapObject');
 
+import type {RelayQueryConfigInterface} from '../query-config/RelayQueryConfig';
+import type RelayQuery from '../query/RelayQuery';
 import type {
   ClassicRelayContext,
   RelayEnvironmentInterface,
-} from 'RelayEnvironment';
-import type {RelayQuerySet} from 'RelayInternalTypes';
-import type RelayQuery from 'RelayQuery';
-import type {RelayQueryConfigInterface} from 'RelayQueryConfig';
-import type {ReadyState, ReadyStateEvent, RelayContainer} from 'RelayTypes';
+} from '../store/RelayEnvironment';
+import type {RelayQuerySet} from '../tools/RelayInternalTypes';
+import type {ReadyState, ReadyStateEvent} from '../tools/RelayTypes';
 
 type Props = {
-  Container: RelayContainer,
+  Container: React.ComponentType<any>,
   environment: RelayEnvironmentInterface,
   queryConfig: RelayQueryConfigInterface,
   readyState?: ?ReadyState,
@@ -170,9 +167,9 @@ class RelayReadyStateRenderer extends React.Component<
       shouldUpdate = false;
     }
     return (
-      <StaticContainer shouldUpdate={shouldUpdate}>
+      <RelayStaticContainer shouldUpdate={shouldUpdate}>
         {children}
-      </StaticContainer>
+      </RelayStaticContainer>
     );
   }
 }
