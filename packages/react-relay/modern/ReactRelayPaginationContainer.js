@@ -338,6 +338,10 @@ function createContainerWithFragments<
     connectionConfig.getFragmentVariables ||
     createGetFragmentVariables(metadata);
 
+  const getVariables =
+    connectionConfig.getVariables ||
+    createGetVariables(metadata);
+
   class Container extends React.Component<$FlowFixMeProps, ContainerState> {
     _isARequestInFlight: boolean;
     _localVariables: ?Variables;
@@ -595,6 +599,12 @@ function createContainerWithFragments<
       callback?: ?(error: ?Error) => void, // <Even> make optional
       options: ?RefetchOptions,
     ): ?Disposable => {
+      // <Even>
+      if (!this._hasMore() || this._isLoading()) {
+        callback && callback();
+        return null;
+      }
+      // </Even>
       const connectionData = this._getConnectionData();
       if (!connectionData) {
         return null;
@@ -636,8 +646,8 @@ function createContainerWithFragments<
         fragments,
         this.props,
       );
-      fragmentVariables = {...fragmentVariables, ...this._localVariables, ...refetchVariables}; // <Even> pass through updated variables
-      let fetchVariables = connectionConfig.getVariables(
+      fragmentVariables = {...fragmentVariables, ...this._localVariables, ...refetchVariables}; // <Even> pass through local variables
+      let fetchVariables = getVariables(
         props,
         {
           count: paginatingVariables.count,
@@ -655,10 +665,10 @@ function createContainerWithFragments<
       );
       fetchVariables = {
         ...fetchVariables,
-        ...this._localVariables, // <Even> pass through updated variables
         ...refetchVariables,
       };
-      this._localVariables = fetchVariables;
+      // <Even> only store refetch variables
+      this._localVariables = {...this._localVariables, ...refetchVariables};
 
       const cacheConfig: ?CacheConfig = options
         ? {force: !!options.force}
@@ -671,6 +681,7 @@ function createContainerWithFragments<
 
       const onCompleted = () => {
         this._pendingRefetch = null;
+        this._pendingRefetchType = null; // <Even>
         this._isARequestInFlight = false;
         this._relayContext = {
           environment: this.context.relay.environment,
@@ -697,11 +708,14 @@ function createContainerWithFragments<
         // `setState` is only required if changing the variables would change the
         // resolved data.
         // TODO #14894725: remove PaginationContainer equal check
-        if (!areEqual(prevData, nextData)) {
+        // <Even> always update so that calls to hasMore(), isLoading(), etc
+        // from component will always get the most up-to-date information
+        // if (!areEqual(prevData, nextData)) {
           this.setState({data: nextData}, () => callback && callback());
-        } else {
-          callback && callback();
-        }
+        // } else {
+        //   callback && callback();
+        // }
+        // </Even>
       };
       const onError = error => {
         this._pendingRefetch = null;
@@ -728,13 +742,13 @@ function createContainerWithFragments<
       });
       if (this._isARequestInFlight) {
         this._pendingRefetch = pendingRefetch;
-        this._pendingRefetchType = variables ? 'refetch' : 'loadMore'; // <Even>
+        this._pendingRefetchType = refetchVariables ? 'refetch' : 'loadMore'; // <Even>
       } else {
         this._pendingRefetch = null;
         this._pendingRefetchType = null; // <Even>
       }
       // <Even> for loading state, updated variables
-      this.setState({relayProp: this._buildRelayProp(context.relay)});
+      this.setState({relayProp: this._buildRelayProp(this.context.relay)});
       // </Even>
       return {
         dispose: () => {
@@ -758,6 +772,7 @@ function createContainerWithFragments<
       if (this._pendingRefetch) {
         this._pendingRefetch.dispose();
         this._pendingRefetch = null;
+        this._pendingRefetchType = null; // <Even>
         this._isARequestInFlight = false;
       }
     }

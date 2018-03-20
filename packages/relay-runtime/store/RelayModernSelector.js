@@ -88,15 +88,19 @@ function getSelector(
       variables: fragmentVariables,
     };
   }
-  warning(
-    false,
-    'RelayModernSelector: Expected object to contain data for fragment `%s`, got ' +
-      '`%s`. Make sure that the parent operation/fragment included fragment ' +
-      '`...%s` without `@relay(mask: false)`.',
-    fragment.name,
-    JSON.stringify(item),
-    fragment.name,
-  );
+  // <Even> do not warn for test data
+  if (item.__testDescription === undefined) {
+    warning(
+        false,
+        'RelayModernSelector: Expected object to contain data for fragment `%s`, got ' +
+        '`%s`. Make sure that the parent operation/fragment included fragment ' +
+        '`...%s` without `@relay(mask: false)`.',
+        fragment.name,
+        JSON.stringify(item),
+        fragment.name,
+    );
+  }
+  // </Even>
   return null;
 }
 

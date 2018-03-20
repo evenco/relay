@@ -309,6 +309,7 @@ function createContainerWithFragments<
         return (
           <ComponentClass
             {...this.props}
+            {...this._localVariables} // <Even> pass through updated variables
             {...this.state.data}
             // TODO: Remove the string ref fallback.
             // eslint-disable-next-line react/no-string-refs
@@ -320,6 +321,7 @@ function createContainerWithFragments<
         // Stateless functional, doesn't support `ref`
         return React.createElement(Component, {
           ...this.props,
+          ...this._localVariables, // <Even> pass through updated variables
           ...this.state.data,
           relay: this.state.relayProp,
         });

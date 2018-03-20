@@ -31,6 +31,7 @@ const formatGeneratedModule: FormatModule = ({
   const devOnlyText = devTextGenerator ? devTextGenerator(objectName) : '';
   return `/**
  * ${'@'}flow${hashText}
+ * ${'@'}providesModule ${moduleName}
  */
 
 /* eslint-disable */
