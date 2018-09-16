@@ -284,7 +284,8 @@ function createContainerWithFragments<
   profileContainer(Container, 'ReactRelayFragmentContainer');
 
   // Make static getDerivedStateFromProps work with older React versions:
-  polyfill(Container);
+  // <Even> seems broken
+  // polyfill(Container);
 
   return Container;
 }

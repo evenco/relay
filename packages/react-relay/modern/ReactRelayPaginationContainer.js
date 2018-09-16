@@ -499,7 +499,7 @@ function createContainerWithFragments<
         isLoadingMore: this._isLoadingMore, // <Even>
         isReloading: this._isReloading, // <Even>
         loadMore: this._loadMore,
-        refetchConnection: this._refetchConnection,
+        refetchConnection: this._evenRefetchConnection,
         environment: relay.environment,
       };
     }
@@ -613,19 +613,28 @@ function createContainerWithFragments<
     // <Even>
 
     _isLoadingMore = (): boolean => {
-      return this._pendingRefetch && this._pendingRefetchType == 'loadMore';
+      return this._refetchSubscription && this._pendingRefetchType == 'loadMore';
     };
 
     _isReloading = (): boolean => {
-      return this._pendingRefetch && this._pendingRefetchType == 'refetch';
+      return this._refetchSubscription && this._pendingRefetchType == 'refetch';
     };
 
     // </Even>
 
+    // <Even> reorder params
+    _evenRefetchConnection = (
+      totalCount: number,
+      refetchVariables: ?Variables,
+      observerOrCallback: ?ObserverOrCallback,
+    ): Disposable => {
+      return this._refetchConnection(totalCount, observerOrCallback, refetchVariables)
+    }
+
     _refetchConnection = (
       totalCount: number,
-      refetchVariables: ?Variables, // <Even> reorder param
       observerOrCallback: ?ObserverOrCallback,
+      refetchVariables: ?Variables,
     ): Disposable => {
       const paginatingVariables = {
         count: totalCount,
@@ -633,10 +642,10 @@ function createContainerWithFragments<
         totalCount,
       };
       const fetch = this._fetchPage(
-        refetchVariables, // <Even> reorder param
         paginatingVariables,
         toObserver(observerOrCallback),
         {force: true},
+        refetchVariables,
       );
 
       return {dispose: fetch.unsubscribe};
@@ -644,10 +653,16 @@ function createContainerWithFragments<
 
     _loadMore = (
       pageSize: number,
-      observerOrCallback?: ?ObserverOrCallback, // <Even> make optional
+      observerOrCallback: ?ObserverOrCallback,
       options: ?RefetchOptions,
     ): ?Disposable => {
       const observer = toObserver(observerOrCallback);
+      // <Even>
+      if (!this._hasMore() || this._isLoading()) {
+        observer.complete && observer.complete();
+        return null;
+      }
+      // </Even>
       const connectionData = this._getConnectionData();
       if (!connectionData) {
         Observable.create(sink => sink.complete()).subscribe(observer);
@@ -655,7 +670,7 @@ function createContainerWithFragments<
       }
       const totalCount = connectionData.edgeCount + pageSize;
       if (options && options.force) {
-        return this._refetchConnection(totalCount, null, observerOrCallback); // <Even> reorder params
+        return this._refetchConnection(totalCount, observerOrCallback, null);
       }
       const {END_CURSOR, START_CURSOR} = ConnectionInterface.get();
       const cursor = connectionData.cursor;
@@ -670,7 +685,7 @@ function createContainerWithFragments<
         cursor: cursor,
         totalCount,
       };
-      const fetch = this._fetchPage(null, paginatingVariables, observer, options);
+      const fetch = this._fetchPage(paginatingVariables, observer, options, null);
       return {dispose: fetch.unsubscribe};
     };
 
@@ -682,13 +697,12 @@ function createContainerWithFragments<
     }
 
     _fetchPage(
-      refetchVariables: ?Variables, // <Even> reorder param
       paginatingVariables: {
         count: number,
         cursor: ?string,
         totalCount: number,
       },
-      observer?: Observer<void>, // <Even> make optional
+      observer: Observer<void>,
       options: ?RefetchOptions,
       refetchVariables: ?Variables,
     ): Subscription {
@@ -728,8 +742,10 @@ function createContainerWithFragments<
         ...fetchVariables,
         ...refetchVariables,
       };
+
       // <Even> only store refetch variables
       this._localVariables = {...this._localVariables, ...refetchVariables};
+      // </Even>
 
       const cacheConfig: ?CacheConfig = options
         ? {force: !!options.force}
@@ -775,6 +791,11 @@ function createContainerWithFragments<
         // <Even> always update so that calls to hasMore(), isLoading(), etc
         // from component will always get the most up-to-date information
         // if (!areEqual(prevData, nextData)) {
+        if (this._refetchSubscription === refetchSubscription) {
+          this._pendingRefetchType = null; // <Even>
+          this._refetchSubscription = null;
+          this._isARequestInFlight = false;
+        }
         this.setState({data: nextData}, complete);
         // } else {
         //   complete();
@@ -819,6 +840,10 @@ function createContainerWithFragments<
       this._refetchSubscription = this._isARequestInFlight
         ? refetchSubscription
         : null;
+
+      // <Even> for loading state, updated variables
+      this.setState({relayProp: this._buildRelayProp(this.context.relay)});
+      // </Even>
 
       return refetchSubscription;
     }

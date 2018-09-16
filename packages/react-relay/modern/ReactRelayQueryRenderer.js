@@ -310,6 +310,7 @@ function fetchQueryAndComputeStateFromProps(
 }
 
 // Make static getDerivedStateFromProps work with older React versions:
-polyfill(ReactRelayQueryRenderer);
+// <Even> seems broken
+// polyfill(ReactRelayQueryRenderer);
 
 module.exports = ReactRelayQueryRenderer;

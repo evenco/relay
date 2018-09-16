@@ -411,7 +411,7 @@ function createContainerWithFragments<
         return (
           <ComponentClass
             {...this.props}
-            {...this._localVariables} // <Even> pass through updated variables
+            {...this.state.localVariables} // <Even> pass through updated variables
             {...this.state.data}
             // TODO: Remove the string ref fallback.
             ref={this.props.componentRef || 'component'}
@@ -422,7 +422,7 @@ function createContainerWithFragments<
         // Stateless functional, doesn't support `ref`
         return React.createElement(Component, {
           ...this.props,
-          ...this._localVariables, // <Even> pass through updated variables
+          ...this.state.localVariables, // <Even> pass through updated variables
           ...this.state.data,
           relay: this.state.relayProp,
         });
@@ -432,7 +432,8 @@ function createContainerWithFragments<
   profileContainer(Container, 'ReactRelayRefetchContainer');
 
   // Make static getDerivedStateFromProps work with older React versions:
-  polyfill(Container);
+  // <Even> seems broken
+  // polyfill(Container);
 
   return Container;
 }
