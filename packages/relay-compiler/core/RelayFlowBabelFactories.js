@@ -4,15 +4,14 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule RelayFlowBabelFactories
- * @flow
+ * @flow strict
  * @format
  */
 
 'use strict';
 
 const invariant = require('invariant');
-const t = require('babel-types');
+const t = require('@babel/types');
 
 type BabelAST = mixed;
 
@@ -73,6 +72,9 @@ function intersectionTypeAnnotation(types: Array<BabelAST>): BabelAST {
 }
 
 function lineComments(...lines: Array<string>) {
+  /* $FlowFixMe(>=0.70.0) This comment suppresses an error found when
+   * Flow v0.70 was deployed. To see the error delete this comment and
+   * run Flow. */
   return lines.map(line => ({type: 'CommentLine', value: ' ' + line}));
 }
 
@@ -91,14 +93,12 @@ function readOnlyArrayOfType(thing: BabelAST) {
  */
 function readOnlyObjectTypeProperty(key: string, value: BabelAST) {
   const prop = t.objectTypeProperty(t.identifier(key), value);
-  prop.variance = 'plus';
+  prop.variance = t.variance('plus');
   return prop;
 }
 
 function stringLiteralTypeAnnotation(value: string) {
-  const annotation = t.stringLiteralTypeAnnotation();
-  annotation.value = value;
-  return annotation;
+  return t.stringLiteralTypeAnnotation(value);
 }
 
 /**

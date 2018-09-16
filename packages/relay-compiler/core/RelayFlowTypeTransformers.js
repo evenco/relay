@@ -4,32 +4,31 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule RelayFlowTypeTransformers
- * @flow
+ * @flow strict-local
  * @format
  */
 
 'use strict';
 
-const t = require('babel-types');
+const t = require('@babel/types');
 
-const {readOnlyArrayOfType} = require('RelayFlowBabelFactories');
+const {readOnlyArrayOfType} = require('./RelayFlowBabelFactories');
 const {
   GraphQLEnumType,
-  GraphQLInputType,
   GraphQLInputObjectType,
   GraphQLInterfaceType,
   GraphQLList,
   GraphQLNonNull,
   GraphQLObjectType,
   GraphQLScalarType,
-  GraphQLType,
   GraphQLUnionType,
 } = require('graphql');
 
 export type ScalarTypeMapping = {
   [type: string]: string,
 };
+
+import type {GraphQLInputType, GraphQLType} from 'graphql';
 
 import type {State} from './RelayFlowGenerator';
 
@@ -76,10 +75,10 @@ function transformNonNullableScalarType(
 }
 
 function transformGraphQLScalarType(type: GraphQLScalarType, state: State) {
-  switch (state.customScalars[type.name] || type.name) {
+  const customType = state.customScalars[type.name];
+  switch (customType || type.name) {
     case 'ID':
     case 'String':
-    case 'Url':
       return t.stringTypeAnnotation();
     case 'Float':
     case 'Int':
@@ -87,7 +86,9 @@ function transformGraphQLScalarType(type: GraphQLScalarType, state: State) {
     case 'Boolean':
       return t.booleanTypeAnnotation();
     default:
-      return t.anyTypeAnnotation();
+      return customType == null
+        ? t.anyTypeAnnotation()
+        : t.genericTypeAnnotation(t.identifier(customType));
   }
 }
 
@@ -114,7 +115,7 @@ function transformNonNullableInputType(type: GraphQLInputType, state: State) {
   } else if (type instanceof GraphQLInputObjectType) {
     const typeIdentifier = getInputObjectTypeIdentifier(type);
     if (state.generatedInputObjectTypes[typeIdentifier]) {
-      return t.identifier(typeIdentifier);
+      return t.genericTypeAnnotation(t.identifier(typeIdentifier));
     }
     state.generatedInputObjectTypes[typeIdentifier] = 'pending';
     const fields = type.getFields();
@@ -134,7 +135,7 @@ function transformNonNullableInputType(type: GraphQLInputType, state: State) {
     state.generatedInputObjectTypes[typeIdentifier] = t.objectTypeAnnotation(
       props,
     );
-    return t.identifier(typeIdentifier);
+    return t.genericTypeAnnotation(t.identifier(typeIdentifier));
   } else {
     throw new Error(`Could not convert from GraphQL type ${type.toString()}`);
   }

@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @flow
+ * @flow strict-local
  * @format
  */
 
@@ -15,16 +15,11 @@ const RelayPropTypes = require('../classic/container/RelayPropTypes');
 
 const areEqual = require('areEqual');
 const buildReactRelayContainer = require('./buildReactRelayContainer');
-const isScalarAndEqual = require('isScalarAndEqual');
-const polyfill = require('react-lifecycles-compat');
 
-const {
-  getComponentName,
-  getReactComponent,
-} = require('../classic/container/RelayContainerUtils');
 const {assertRelayContext} = require('../classic/environment/RelayContext');
 const {profileContainer} = require('./ReactRelayContainerProfiler');
-const {RelayProfiler} = require('RelayRuntime');
+const {getContainerName} = require('./ReactRelayContainerUtils');
+const {RelayProfiler, isScalarAndEqual} = require('relay-runtime');
 
 import type {FragmentSpecResolver} from '../classic/environment/RelayCombinedEnvironmentTypes';
 import type {RelayEnvironmentInterface as ClassicEnvironment} from '../classic/store/RelayEnvironment';
@@ -35,7 +30,7 @@ import type {
   IEnvironment,
   RelayContext,
   Variables,
-} from 'RelayRuntime';
+} from 'relay-runtime';
 
 type ContainerProps = $FlowFixMeProps;
 type ContainerState = {
@@ -60,11 +55,9 @@ function createContainerWithFragments<
   Component: TComponent,
   fragments: FragmentMap,
 ): React.ComponentType<
-  $RelayProps<React.ElementConfig<TComponent>, RelayProp>,
+  $RelayProps<React$ElementConfig<TComponent>, RelayProp>,
 > {
-  const ComponentClass = getReactComponent(Component);
-  const componentName = getComponentName(Component);
-  const containerName = `Relay(${componentName})`;
+  const containerName = getContainerName(Component);
 
   class Container extends React.Component<ContainerProps, ContainerState> {
     static displayName = containerName;
@@ -177,6 +170,7 @@ function createContainerWithFragments<
 
     componentDidMount() {
       this._subscribeToNewResolver();
+      this._rerenderIfStoreHasChanged();
     }
 
     componentDidUpdate(prevProps: ContainerProps, prevState: ContainerState) {
@@ -185,6 +179,7 @@ function createContainerWithFragments<
 
         this._subscribeToNewResolver();
       }
+      this._rerenderIfStoreHasChanged();
     }
 
     componentWillUnmount() {
@@ -245,13 +240,8 @@ function createContainerWithFragments<
       }, profiler.stop);
     };
 
-    _subscribeToNewResolver() {
+    _rerenderIfStoreHasChanged() {
       const {data, resolver} = this.state;
-
-      // Event listeners are only safe to add during the commit phase,
-      // So they won't leak if render is interrupted or errors.
-      resolver.setCallback(this._handleFragmentDataUpdate);
-
       // External values could change between render and commit.
       // Check for this case, even though it requires an extra store read.
       const maybeNewData = resolver.resolve();
@@ -260,32 +250,25 @@ function createContainerWithFragments<
       }
     }
 
+    _subscribeToNewResolver() {
+      const {resolver} = this.state;
+
+      // Event listeners are only safe to add during the commit phase,
+      // So they won't leak if render is interrupted or errors.
+      resolver.setCallback(this._handleFragmentDataUpdate);
+    }
+
     render() {
-      if (ComponentClass) {
-        return (
-          <ComponentClass
-            {...this.props}
-            {...this.state.data}
-            // TODO: Remove the string ref fallback.
-            ref={this.props.componentRef || 'component'}
-            relay={this.state.relayProp}
-          />
-        );
-      } else {
-        // Stateless functional, doesn't support `ref`
-        return React.createElement(Component, {
-          ...this.props,
-          ...this.state.data,
-          relay: this.state.relayProp,
-        });
-      }
+      const {componentRef, ...props} = this.props;
+      return React.createElement(Component, {
+        ...props,
+        ...this.state.data,
+        ref: componentRef,
+        relay: this.state.relayProp,
+      });
     }
   }
   profileContainer(Container, 'ReactRelayFragmentContainer');
-
-  // Make static getDerivedStateFromProps work with older React versions:
-  // <Even> seems broken
-  // polyfill(Container);
 
   return Container;
 }
@@ -301,12 +284,13 @@ function createContainer<Props: {}, TComponent: React.ComponentType<Props>>(
   Component: TComponent,
   fragmentSpec: GraphQLTaggedNode | GeneratedNodeMap,
 ): React.ComponentType<
-  $RelayProps<React.ElementConfig<TComponent>, RelayProp>,
+  $RelayProps<React$ElementConfig<TComponent>, RelayProp>,
 > {
   return buildReactRelayContainer(
     Component,
     fragmentSpec,
     createContainerWithFragments,
+    /* provides child context */ false,
   );
 }
 

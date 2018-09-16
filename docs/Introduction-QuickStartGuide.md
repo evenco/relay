@@ -137,7 +137,7 @@ export default class App extends React.Component {
 Our app is rendering a `QueryRenderer` in the above code, like any other React Component, but let's see what's going on in the props that we are passing to it:
 
 - We're passing the `environment` we defined earlier.
-- We're using using the [`graphql`](./graphql-in-relay.html) function to define our GraphQL query. `graphql` is a template tag that is never executed at runtime, but rather used by the [Relay Compiler](./graphql-in-relay.html#relay-compiler) to generate the runtime artifacts that Relay requires to operate. We don't need to worry about this right now; for more details check out our [GraphQL in Relay](./graphql-in-relay.html) docs.
+- We're using the [`graphql`](./graphql-in-relay.html) function to define our GraphQL query. `graphql` is a template tag that is never executed at runtime, but rather used by the [Relay Compiler](./graphql-in-relay.html#relay-compiler) to generate the runtime artifacts that Relay requires to operate. We don't need to worry about this right now; for more details check out our [GraphQL in Relay](./graphql-in-relay.html) docs.
 - We're passing an empty set of `variables`. We'll look into how to use variables in the next section.
 - We're passing a `render` function; as you can tell from the code, Relay gives us some information about whether an error occurred, or if we're still fetching the query. If everything succeeds, the data we requested will be available inside `props`, with the same shape as the one specified in the query.
 
@@ -316,7 +316,7 @@ Before proceeding, don't forget to run the Relay Compiler with `yarn relay`.
 
 ## Composing Fragments
 
-Given that [Fragment Containers](./fragment-containers) are just React components, we can compose them as such. We can even re-use fragment containers within other fragment containers. As an example, let's see how we would define a `TodoList` component that just renders a list of todo items, and whether all have been completed or not:
+Given that [Fragment Containers](./fragment-container) are just React components, we can compose them as such. We can even re-use fragment containers within other fragment containers. As an example, let's see how we would define a `TodoList` component that just renders a list of todo items, and whether all have been completed or not:
 
 ```javascript
 // TodoList.js
@@ -567,6 +567,14 @@ export default {commit};
 ```
 
 In the simplest case above, we just need to pass an `optimisticResponse` option, which should refer to an object having the same shape as the mutation response payload. When we pass this option, Relay will know to immediately update our local data with the optimistic response, and then update it with the actual server response or roll it back if an error occurs.
+
+Please note that the actual query and response payload may not have the exact same shape as the selection in your code, because sometimes Relay will add extra fields for you during the compilation step, and you need to add these fields to your optimistic response. For example:
+
+* Relay will add an `id` field if it exists on the type for caching purpose.
+
+* Relay will add a `__typename` field if the type is an union or an interface.
+
+You can inspect the network request or response to see the exact shape.
 
 ### Updating local data from mutation responses
 

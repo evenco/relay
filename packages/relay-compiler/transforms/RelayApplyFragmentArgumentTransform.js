@@ -4,7 +4,6 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule RelayApplyFragmentArgumentTransform
  * @flow
  * @format
  */
@@ -14,7 +13,7 @@
 const RelayCompilerScope = require('../core/RelayCompilerScope');
 
 const invariant = require('invariant');
-const murmurHash = require('murmurHash');
+const murmurHash = require('../util/murmurHash');
 
 const {
   getIdentifierForArgumentValue,
@@ -358,9 +357,10 @@ function transformFragment(
     fragment.argumentDefinitions,
     args,
     parentScope,
+    fragment.name,
   );
   invariant(
-    !fragments.has(fragmentName) || fragments.get(fragmentName) !== undefined,
+    !fragments.has(fragmentName) || fragments.get(fragmentName) != null,
     'RelayApplyFragmentArgumentTransform: Found a circular reference from ' +
       'fragment `%s`.',
     fragment.name,

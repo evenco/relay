@@ -4,26 +4,22 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule writeRelayGeneratedFile
  * @flow
  * @format
  */
 
 'use strict';
 
-// TODO T21875029 ../../relay-runtime/util/RelayConcreteNode
-const RelayConcreteNode = require('RelayConcreteNode');
-
 const crypto = require('crypto');
-const dedupeJSONStringify = require('dedupeJSONStringify');
+const dedupeJSONStringify = require('../util/dedupeJSONStringify');
 const deepMergeAssignments = require('./deepMergeAssignments');
 const nullthrows = require('nullthrows');
 
 const {Profiler} = require('graphql-compiler');
+const {RelayConcreteNode} = require('relay-runtime');
 
-// TODO T21875029 ../../relay-runtime/util/RelayConcreteNode
-import type {GeneratedNode} from 'RelayConcreteNode';
 import type {CodegenDirectory} from 'graphql-compiler';
+import type {GeneratedNode} from 'relay-runtime';
 
 /**
  * Generate a module for the given document name/text.
@@ -84,8 +80,9 @@ async function writeRelayGeneratedFile(
       const oldContent = codegenDir.read(filename);
       // Hash the concrete node including the query text.
       const hasher = crypto.createHash('md5');
-      hasher.update('cache-breaker-6');
+      hasher.update('cache-breaker-7');
       hasher.update(JSON.stringify(generatedNode));
+      hasher.update(sourceHash);
       if (flowText) {
         hasher.update(flowText);
       }

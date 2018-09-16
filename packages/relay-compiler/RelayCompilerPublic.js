@@ -4,14 +4,12 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @flow
- * @providesModule RelayCompilerPublic
+ * @flow strict-local
  * @format
  */
 
 'use strict';
 
-const GraphQLCompilerContext = require('./graphql-compiler/core/GraphQLCompilerContext');
 const RelayCodeGenerator = require('./codegen/RelayCodeGenerator');
 const RelayFileWriter = require('./codegen/RelayFileWriter');
 const RelayIRTransforms = require('./core/RelayIRTransforms');
@@ -21,6 +19,7 @@ const RelayParser = require('./core/RelayParser');
 const compileRelayArtifacts = require('./codegen/compileRelayArtifacts');
 const formatGeneratedModule = require('./codegen/formatGeneratedModule');
 
+const {CompilerContext: GraphQLCompilerContext} = require('graphql-compiler');
 const {
   ASTConvert,
   CodegenRunner,

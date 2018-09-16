@@ -4,20 +4,19 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule RelayFlowGenerator
  * @flow
  * @format
  */
 
 'use strict';
 
-const PatchedBabelGenerator = require('./PatchedBabelGenerator');
-const RelayMaskTransform = require('RelayMaskTransform');
-const RelayRelayDirectiveTransform = require('RelayRelayDirectiveTransform');
+const babelGenerator = require('@babel/generator').default;
+const RelayMaskTransform = require('../transforms/RelayMaskTransform');
+const RelayRelayDirectiveTransform = require('../transforms/RelayRelayDirectiveTransform');
 
 const invariant = require('invariant');
 const nullthrows = require('nullthrows');
-const t = require('babel-types');
+const t = require('@babel/types');
 
 const {
   anyTypeAlias,
@@ -28,7 +27,6 @@ const {
   lineComments,
   readOnlyArrayOfType,
   readOnlyObjectTypeProperty,
-  stringLiteralTypeAnnotation,
   unionTypeAnnotation,
 } = require('./RelayFlowBabelFactories');
 const {
@@ -56,6 +54,7 @@ type Options = {|
   +existingFragmentNames: Set<string>,
   +inputFieldWhiteList: $ReadOnlyArray<string>,
   +relayRuntimeModule: string,
+  +noFutureProofEnums: boolean,
 |};
 
 export type State = {|
@@ -70,7 +69,7 @@ export type State = {|
 
 function generate(node: Root | Fragment, options: Options): string {
   const ast = IRVisitor.visit(node, createVisitor(options));
-  return PatchedBabelGenerator.generate(ast);
+  return babelGenerator(ast).code;
 }
 
 type Selection = {
@@ -88,6 +87,7 @@ type SelectionMap = Map<string, Selection>;
 function makeProp(
   {key, schemaName, value, conditional, nodeType, nodeSelections}: Selection,
   state: State,
+  unmasked: boolean,
   concreteType?: string,
 ) {
   if (nodeType) {
@@ -97,11 +97,12 @@ function makeProp(
       selectionsToBabel(
         [Array.from(nullthrows(nodeSelections).values())],
         state,
+        unmasked,
       ),
     );
   }
   if (schemaName === '__typename' && concreteType) {
-    value = stringLiteralTypeAnnotation(concreteType);
+    value = t.stringLiteralTypeAnnotation(concreteType);
   }
   const typeProperty = readOnlyObjectTypeProperty(key, value);
   if (conditional) {
@@ -114,7 +115,12 @@ const isTypenameSelection = selection => selection.schemaName === '__typename';
 const hasTypenameSelection = selections => selections.some(isTypenameSelection);
 const onlySelectsTypename = selections => selections.every(isTypenameSelection);
 
-function selectionsToBabel(selections, state: State, refTypeName?: string) {
+function selectionsToBabel(
+  selections,
+  state: State,
+  unmasked: boolean,
+  refTypeName?: string,
+) {
   const baseFields = new Map();
   const byConcreteType = {};
 
@@ -143,26 +149,36 @@ function selectionsToBabel(selections, state: State, refTypeName?: string) {
         hasTypenameSelection(byConcreteType[type]),
       ))
   ) {
+    const typenameAliases = new Set();
     for (const concreteType in byConcreteType) {
       types.push(
         groupRefs([
           ...Array.from(baseFields.values()),
           ...byConcreteType[concreteType],
-        ]).map(selection => makeProp(selection, state, concreteType)),
+        ]).map(selection => {
+          if (selection.schemaName === '__typename') {
+            typenameAliases.add(selection.key);
+          }
+          return makeProp(selection, state, unmasked, concreteType);
+        }),
       );
     }
     // It might be some other type then the listed concrete types. Ideally, we
     // would set the type to diff(string, set of listed concrete types), but
     // this doesn't exist in Flow at the time.
-    const otherProp = readOnlyObjectTypeProperty(
-      '__typename',
-      stringLiteralTypeAnnotation('%other'),
+    types.push(
+      Array.from(typenameAliases).map(typenameAlias => {
+        const otherProp = readOnlyObjectTypeProperty(
+          typenameAlias,
+          t.stringLiteralTypeAnnotation('%other'),
+        );
+        otherProp.leadingComments = lineComments(
+          "This will never be '%other', but we need some",
+          'value in case none of the concrete values match.',
+        );
+        return otherProp;
+      }),
     );
-    otherProp.leadingComments = lineComments(
-      "This will never be '%other', but we need some",
-      'value in case none of the concrete values match.',
-    );
-    types.push([otherProp]);
   } else {
     let selectionMap = selectionsToMap(Array.from(baseFields.values()));
     for (const concreteType in byConcreteType) {
@@ -179,8 +195,13 @@ function selectionsToBabel(selections, state: State, refTypeName?: string) {
     const selectionMapValues = groupRefs(Array.from(selectionMap.values())).map(
       sel =>
         isTypenameSelection(sel) && sel.concreteType
-          ? makeProp({...sel, conditional: false}, state, sel.concreteType)
-          : makeProp(sel, state),
+          ? makeProp(
+              {...sel, conditional: false},
+              state,
+              unmasked,
+              sel.concreteType,
+            )
+          : makeProp(sel, state, unmasked),
     );
     types.push(selectionMapValues);
   }
@@ -189,10 +210,15 @@ function selectionsToBabel(selections, state: State, refTypeName?: string) {
     types.map(props => {
       if (refTypeName) {
         props.push(
-          readOnlyObjectTypeProperty('$refType', t.identifier(refTypeName)),
+          readOnlyObjectTypeProperty(
+            '$refType',
+            t.genericTypeAnnotation(t.identifier(refTypeName)),
+          ),
         );
       }
-      return exactObjectTypeAnnotation(props);
+      return unmasked
+        ? t.objectTypeAnnotation(props)
+        : exactObjectTypeAnnotation(props);
     }),
   );
 }
@@ -240,6 +266,7 @@ function createVisitor(options: Options) {
     usedEnums: {},
     usedFragments: new Set(),
     useHaste: options.useHaste,
+    noFutureProofEnums: options.noFutureProofEnums,
   };
 
   return {
@@ -249,7 +276,20 @@ function createVisitor(options: Options) {
         const inputObjectTypes = generateInputObjectTypes(state);
         const responseType = exportType(
           `${node.name}Response`,
-          selectionsToBabel(node.selections, state),
+          selectionsToBabel(node.selections, state, false),
+        );
+        const operationType = exportType(
+          node.name,
+          exactObjectTypeAnnotation([
+            t.objectTypeProperty(
+              t.identifier('variables'),
+              t.genericTypeAnnotation(t.identifier(`${node.name}Variables`)),
+            ),
+            t.objectTypeProperty(
+              t.identifier('response'),
+              t.genericTypeAnnotation(t.identifier(`${node.name}Response`)),
+            ),
+          ]),
         );
         return t.program([
           ...getFragmentImports(state),
@@ -257,6 +297,7 @@ function createVisitor(options: Options) {
           ...inputObjectTypes,
           inputVariablesType,
           responseType,
+          operationType,
         ]);
       },
 
@@ -281,12 +322,20 @@ function createVisitor(options: Options) {
         });
         state.generatedFragments.add(node.name);
         const refTypeName = getRefTypeName(node.name);
-        const refType = t.expressionStatement(
-          t.identifier(
-            `declare export opaque type ${refTypeName}: FragmentReference`,
+        const refType = t.declareExportDeclaration(
+          t.declareOpaqueType(
+            t.identifier(refTypeName),
+            null,
+            t.genericTypeAnnotation(t.identifier('FragmentReference')),
           ),
         );
-        const baseType = selectionsToBabel(selections, state, refTypeName);
+        const unmasked = node.metadata && node.metadata.mask === false;
+        const baseType = selectionsToBabel(
+          selections,
+          state,
+          unmasked,
+          unmasked ? undefined : refTypeName,
+        );
         const type = isPlural(node) ? readOnlyArrayOfType(baseType) : baseType;
         return t.program([
           ...getFragmentImports(state),
@@ -411,7 +460,9 @@ function groupRefs(props): Array<Selection> {
   });
   if (refs.length > 0) {
     const value = intersectionTypeAnnotation(
-      refs.map(ref => t.identifier(getRefTypeName(ref))),
+      refs.map(ref =>
+        t.genericTypeAnnotation(t.identifier(getRefTypeName(ref))),
+      ),
     );
     result.push({
       key: '$fragmentRefs',
@@ -442,7 +493,11 @@ function getFragmentImports(state: State) {
   return imports;
 }
 
-function getEnumDefinitions({enumsHasteModule, usedEnums}: State) {
+function getEnumDefinitions({
+  enumsHasteModule,
+  usedEnums,
+  noFutureProofEnums,
+}: State) {
   const enumNames = Object.keys(usedEnums).sort();
   if (enumNames.length === 0) {
     return [];
@@ -453,11 +508,13 @@ function getEnumDefinitions({enumsHasteModule, usedEnums}: State) {
   return enumNames.map(name => {
     const values = usedEnums[name].getValues().map(({value}) => value);
     values.sort();
-    values.push('%future added value');
+    if (!noFutureProofEnums) {
+      values.push('%future added value');
+    }
     return exportType(
       name,
       t.unionTypeAnnotation(
-        values.map(value => stringLiteralTypeAnnotation(value)),
+        values.map(value => t.stringLiteralTypeAnnotation(value)),
       ),
     );
   });

@@ -16,16 +16,11 @@ const RelayPropTypes = require('../classic/container/RelayPropTypes');
 
 const areEqual = require('areEqual');
 const buildReactRelayContainer = require('./buildReactRelayContainer');
-const isScalarAndEqual = require('isScalarAndEqual');
-const polyfill = require('react-lifecycles-compat');
 
-const {
-  getComponentName,
-  getReactComponent,
-} = require('../classic/container/RelayContainerUtils');
 const {assertRelayContext} = require('../classic/environment/RelayContext');
 const {profileContainer} = require('./ReactRelayContainerProfiler');
-const {Observable, RelayProfiler} = require('RelayRuntime');
+const {getContainerName} = require('./ReactRelayContainerUtils');
+const {Observable, RelayProfiler, isScalarAndEqual} = require('relay-runtime');
 
 import type {FragmentSpecResolver} from '../classic/environment/RelayCombinedEnvironmentTypes';
 import type {RelayEnvironmentInterface as ClassicEnvironment} from '../classic/store/RelayEnvironment';
@@ -44,7 +39,7 @@ import type {
   RelayContext,
   Subscription,
   Variables,
-} from 'RelayRuntime';
+} from 'relay-runtime';
 
 type ContainerProps = $FlowFixMeProps;
 
@@ -76,11 +71,9 @@ function createContainerWithFragments<
   fragments: FragmentMap,
   taggedNode: GraphQLTaggedNode,
 ): React.ComponentType<
-  $RelayProps<React.ElementConfig<TComponent>, RelayRefetchProp>,
+  $RelayProps<React$ElementConfig<TComponent>, RelayRefetchProp>,
 > {
-  const ComponentClass = getReactComponent(Component);
-  const componentName = getComponentName(Component);
-  const containerName = `Relay(${componentName})`;
+  const containerName = getContainerName(Component);
 
   class Container extends React.Component<ContainerProps, ContainerState> {
     static displayName = containerName;
@@ -407,33 +400,17 @@ function createContainerWithFragments<
     }
 
     render() {
-      if (ComponentClass) {
-        return (
-          <ComponentClass
-            {...this.props}
-            {...this.state.localVariables} // <Even> pass through updated variables
-            {...this.state.data}
-            // TODO: Remove the string ref fallback.
-            ref={this.props.componentRef || 'component'}
-            relay={this.state.relayProp}
-          />
-        );
-      } else {
-        // Stateless functional, doesn't support `ref`
-        return React.createElement(Component, {
-          ...this.props,
-          ...this.state.localVariables, // <Even> pass through updated variables
-          ...this.state.data,
-          relay: this.state.relayProp,
-        });
-      }
+      const {componentRef, ...props} = this.props;
+      return React.createElement(Component, {
+        ...props,
+        ...this.state.localVariables, // <Even> pass through updated variables
+        ...this.state.data,
+        ref: componentRef,
+        relay: this.state.relayProp,
+      });
     }
   }
   profileContainer(Container, 'ReactRelayRefetchContainer');
-
-  // Make static getDerivedStateFromProps work with older React versions:
-  // <Even> seems broken
-  // polyfill(Container);
 
   return Container;
 }
@@ -450,20 +427,15 @@ function createContainer<Props: {}, TComponent: React.ComponentType<Props>>(
   fragmentSpec: GraphQLTaggedNode | GeneratedNodeMap,
   taggedNode: GraphQLTaggedNode,
 ): React.ComponentType<
-  $RelayProps<React.ElementConfig<TComponent>, RelayRefetchProp>,
+  $RelayProps<React$ElementConfig<TComponent>, RelayRefetchProp>,
 > {
-  const Container = buildReactRelayContainer(
+  return buildReactRelayContainer(
     Component,
     fragmentSpec,
     (ComponentClass, fragments) =>
       createContainerWithFragments(ComponentClass, fragments, taggedNode),
+    /* provides child context */ true,
   );
-  /* $FlowFixMe(>=0.53.0) This comment suppresses an error
-   * when upgrading Flow's support for React. Common errors found when
-   * upgrading Flow's React support are documented at
-   * https://fburl.com/eq7bs81w */
-  Container.childContextTypes = containerContextTypes;
-  return Container;
 }
 
 module.exports = {createContainer, createContainerWithFragments};

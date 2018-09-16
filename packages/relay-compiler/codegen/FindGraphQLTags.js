@@ -4,7 +4,6 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule FindGraphQLTags
  * @flow
  * @format
  */
@@ -13,7 +12,7 @@
 
 const RelayCompilerCache = require('../util/RelayCompilerCache');
 
-const babylon = require('metro-babylon7');
+const babylon = require('@babel/parser');
 const getModuleName = require('../util/getModuleName');
 const graphql = require('graphql');
 const path = require('path');
@@ -41,7 +40,10 @@ const BABYLON_OPTIONS = {
     'functionBind',
     'functionSent',
     'jsx',
+    'nullishCoalescingOperator',
     'objectRestSpread',
+    'optionalChaining',
+    'optionalCatchBinding',
   ],
   strictMode: false,
 };

@@ -4,7 +4,6 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule RelayFileWriter
  * @flow
  * @format
  */
@@ -59,10 +58,12 @@ export type WriterConfig = {
   generateExtraFiles?: GenerateExtraFiles,
   inputFieldWhiteListForFlow: Array<string>,
   outputDir?: string,
+  generatedDirectories?: Array<string>,
   persistQuery?: (text: string) => Promise<string>,
   platform?: string,
   relayRuntimeModule?: string,
   schemaExtensions: Array<string>,
+  noFutureProofEnums: boolean,
   useHaste: boolean,
   // Haste style module that exports flow types for GraphQL enums.
   // TODO(T22422153) support non-haste environments
@@ -152,6 +153,10 @@ class RelayFileWriter implements FileWriterInterface {
         allOutputDirectories.set(dirPath, codegenDir);
         return codegenDir;
       };
+
+      for (const existingDirectory of this._config.generatedDirectories || []) {
+        addCodegenDir(existingDirectory);
+      }
 
       let configOutputDirectory;
       if (this._config.outputDir) {
@@ -280,6 +285,7 @@ class RelayFileWriter implements FileWriterInterface {
               inputFieldWhiteList: this._config.inputFieldWhiteListForFlow,
               relayRuntimeModule,
               useHaste: this._config.useHaste,
+              noFutureProofEnums: this._config.noFutureProofEnums,
             });
 
             const sourceHash = Profiler.run('hashGraphQL', () =>

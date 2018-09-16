@@ -4,7 +4,6 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  *
- * @providesModule formatGeneratedModule
  * @flow
  * @format
  */
@@ -41,6 +40,7 @@ ${flowText || ''}
 
 ${docTextComment}
 const node/*: ${documentType}*/ = ${concreteText};
+// prettier-ignore
 (node/*: any*/).hash = '${sourceHash}';
 module.exports = node;
 `;

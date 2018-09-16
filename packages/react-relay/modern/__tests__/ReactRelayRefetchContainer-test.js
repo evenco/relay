@@ -17,7 +17,7 @@ const ReactTestRenderer = require('ReactTestRenderer');
 const RelayModernTestUtils = require('RelayModernTestUtils');
 
 const {createMockEnvironment} = require('RelayModernMockEnvironment');
-const {createOperationSelector, ROOT_ID} = require('RelayRuntime');
+const {createOperationSelector, ROOT_ID} = require('relay-runtime');
 
 describe('ReactRelayRefetchContainer', () => {
   let TestComponent;
@@ -40,7 +40,7 @@ describe('ReactRelayRefetchContainer', () => {
       this.relay = {environment, variables};
       this.state = {props: null};
     }
-    componentWillReceiveProps(nextProps) {
+    UNSAFE_componentWillReceiveProps(nextProps) {
       // eslint-disable-next-line no-shadow
       const {environment, variables} = nextProps;
       if (
@@ -147,7 +147,8 @@ describe('ReactRelayRefetchContainer', () => {
   });
 
   it('generates a name for containers', () => {
-    expect(TestContainer.displayName).toBe('Relay(TestComponent)');
+    expect(TestContainer.$$typeof).toBe(Symbol.for('react.forward_ref'));
+    expect(TestContainer.render.displayName).toBe('Relay(TestComponent)');
   });
 
   it('throws for invalid fragments', () => {
