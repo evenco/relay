@@ -687,7 +687,7 @@ function createContainerWithFragments<
         cursor: cursor,
         totalCount,
       };
-      const fetch = this._fetchPage(paginatingVariables, observer, options, null);
+      const fetch = this._fetchPage(paginatingVariables, observer, options);
       this._hasPaginated = true;
       return {dispose: fetch.unsubscribe};
     };
@@ -752,7 +752,7 @@ function createContainerWithFragments<
       };
 
       // <Even> only store refetch variables
-      this._localVariables = {...this._localVariables, ...refetchVariables};
+      this._localVariables = {...this._localVariables, ...this._refetchVariables};
       // </Even>
 
       const cacheConfig: ?CacheConfig = options
@@ -843,7 +843,7 @@ function createContainerWithFragments<
         .subscribe(observer || {});
 
       this._pendingRefetchType = this._isARequestInFlight // <Even>
-        ? (refetchVariables ? 'refetch' : 'loadMore')
+        ? (this._refetchVariables ? 'refetch' : 'loadMore')
         : null; 
       this._refetchSubscription = this._isARequestInFlight
         ? refetchSubscription
