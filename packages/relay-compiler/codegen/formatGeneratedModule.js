@@ -26,7 +26,6 @@ const formatGeneratedModule: FormatModule = ({
   const hashText = hash ? `\n * ${hash}` : '';
   return `/**
  * ${'@'}flow${hashText}
- * ${'@'}providesModule ${moduleName}
  */
 
 /* eslint-disable */

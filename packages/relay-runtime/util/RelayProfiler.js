@@ -27,7 +27,7 @@ const NOT_INVOKED = {};
 const defaultProfiler = {stop: emptyFunction};
 const shouldInstrument = name => {
   if (__DEV__) {
-    return false; // <Even> seems broken
+    return true;
   }
   return name.charAt(0) !== '@';
 };
