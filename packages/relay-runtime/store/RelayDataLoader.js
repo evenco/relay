@@ -125,7 +125,8 @@ class RelayDataLoader {
 
   _handleMissingScalarField(field: ConcreteScalarField, dataID: DataID): mixed {
     const {args, record} = this._getDataForHandlers(field, dataID);
-    for (const handler of this._handlers) {
+    for (var i = 0; i < this._handlers.length; i++) {
+      const handler = this._handlers[i];
       if (handler.kind === 'scalar') {
         const newValue = handler.handle(field, record, args);
         if (newValue !== undefined) {
@@ -138,7 +139,8 @@ class RelayDataLoader {
 
   _handleMissingLinkField(field: ConcreteLinkedField, dataID: DataID): ?DataID {
     const {args, record} = this._getDataForHandlers(field, dataID);
-    for (const handler of this._handlers) {
+    for (var i = 0; i < this._handlers.length; i++) {
+      const handler = this._handlers[i];
       if (handler.kind === 'linked') {
         const newValue = handler.handle(field, record, args);
         if (
@@ -157,7 +159,8 @@ class RelayDataLoader {
     dataID: DataID,
   ): ?Array<?DataID> {
     const {args, record} = this._getDataForHandlers(field, dataID);
-    for (const handler of this._handlers) {
+    for (var i = 0; i < this._handlers.length; i++) {
+      const handler = this._handlers[i];
       if (handler.kind === 'pluralLinked') {
         const newValue = handler.handle(field, record, args);
         if (newValue != null) {
