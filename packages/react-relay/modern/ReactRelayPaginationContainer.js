@@ -731,7 +731,7 @@ function createContainerWithFragments<
         ...this._localVariables,
         ...this._refetchVariables,
       };
-      let fetchVariables = connectionConfig.getVariables(
+      let fetchVariables = getVariables(
         props,
         {
           count: paginatingVariables.count,
